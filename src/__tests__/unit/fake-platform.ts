@@ -1,3 +1,4 @@
+import type { CliIo } from "../../cli.ts"
 import type { FetchAPI } from "../../platform.ts"
 
 /** One request the fake platform received. */
@@ -34,8 +35,44 @@ const page = (items: unknown[]): Record<string, unknown> => ({
 })
 
 /** The default routes: one team, one token. */
+/** An authority as the API returns it. */
+export const AUTHORITY = {
+  id: "ca_1",
+  teamId: "team_1",
+  name: "fleet",
+  kind: "platform",
+  certificatePem: null,
+  fingerprint: "ab:cd",
+  status: "active",
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z"
+}
+
+/** An enrollment as the API returns it. */
+export const ENROLLMENT = {
+  id: "enr_1",
+  teamId: "team_1",
+  spaceId: "spc_1",
+  label: "",
+  status: "pending",
+  claimedDeviceId: null,
+  claimedAt: null,
+  expiresAt: "2026-10-02T00:00:00.000Z",
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z"
+}
+
 export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
   "GET /v1/teams": { status: 200, body: page([team("team_1")]) },
+  "GET /v1/teams/team_1/authorities": { status: 200, body: page([AUTHORITY]) },
+  "POST /v1/teams/team_1/authorities": { status: 201, body: { data: AUTHORITY } },
+  "DELETE /v1/teams/team_1/authorities/ca_1": { status: 204 },
+  "GET /v1/teams/team_1/enrollments": { status: 200, body: page([ENROLLMENT]) },
+  "POST /v1/teams/team_1/enrollments": {
+    status: 201,
+    body: { data: { enrollment: ENROLLMENT, code: "QM-1234" } }
+  },
+  "DELETE /v1/teams/team_1/enrollments/enr_1": { status: 204 },
   "GET /v1/teams/team_1/api-tokens": { status: 200, body: page([TOKEN]) },
   "DELETE /v1/teams/team_1/api-tokens/tok_1": { status: 204 }
 }
@@ -74,4 +111,44 @@ export function fakePlatform(routes: Readonly<Record<string, Reply>> = DEFAULT_R
     })
   }
   return { fetch, requests }
+}
+
+/** A CLI run's io, with its output captured. */
+export type Captured = {
+  io: CliIo
+  out: () => string
+  err: () => string
+  requests: Recorded[]
+}
+
+/**
+ * Captures a CLI run against the fake platform, with a token set.
+ *
+ * @param extra - io fields to override
+ * @param routes - the fake platform's routes
+ * @returns the io, its captured output and the requests it sent
+ */
+export function capture(
+  extra: Partial<CliIo> = {},
+  routes: Readonly<Record<string, Reply>> = DEFAULT_ROUTES
+): Captured {
+  let out = ""
+  let err = ""
+  const { fetch, requests } = fakePlatform(routes)
+  return {
+    io: {
+      stdout: (text) => {
+        out += text
+      },
+      stderr: (text) => {
+        err += text
+      },
+      env: { QUALITHM_API_TOKEN: "qmt_x" },
+      fetch,
+      ...extra
+    },
+    out: () => out,
+    err: () => err,
+    requests
+  }
 }

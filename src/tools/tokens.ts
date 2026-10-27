@@ -1,12 +1,7 @@
 import { ApiTokensApi } from "@qualithm/platform"
 import { z } from "zod"
 
-import { defineTool, dryRunInput } from "./tool.ts"
-
-const page = {
-  page: z.number().int().positive().optional().describe("1-based page number"),
-  limit: z.number().int().min(1).max(100).optional().describe("items per page, at most 100")
-}
+import { defineTool, dryRunInput, pageInput } from "./tool.ts"
 
 /** Lists the team's member API tokens: metadata only, never secrets. */
 export const listApiTokens = defineTool({
@@ -14,7 +9,7 @@ export const listApiTokens = defineTool({
   description:
     "List member API tokens for the token's team (metadata only; secrets are never listed).",
   mutating: false,
-  input: page,
+  input: pageInput,
   run: async (session, input) => {
     const teamId = await session.teamId()
     const { data } = await session.client.api(ApiTokensApi).listApiTokens({ teamId, ...input })
