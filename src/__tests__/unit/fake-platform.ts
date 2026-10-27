@@ -62,7 +62,55 @@ export const ENROLLMENT = {
   updatedAt: "2026-10-01T00:00:00.000Z"
 }
 
+/** A device credential as the API returns it. */
+export const CREDENTIAL = {
+  id: "cred_2",
+  deviceId: "dev_1",
+  authorityId: null,
+  kind: "token",
+  certFingerprint: null,
+  certSubject: null,
+  label: "",
+  status: "active",
+  expiresAt: null,
+  lastUsedAt: null,
+  rotatedFrom: "cred_1",
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z"
+}
+
+const CERT_CREDENTIAL = {
+  ...CREDENTIAL,
+  id: "cred_3",
+  kind: "certificate",
+  rotatedFrom: null,
+  certFingerprint: "aa:bb"
+}
+
+const BROKER = { host: "gw.qualithm.com", port: 8883 }
+
 export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
+  "GET /v1/teams/team_1/devices/dev_1/credentials": { status: 200, body: { data: [CREDENTIAL] } },
+  "POST /v1/teams/team_1/devices/dev_1/credentials": {
+    status: 201,
+    body: { data: { credential: CREDENTIAL, secret: "qmd_secret" } }
+  },
+  "POST /v1/teams/team_1/devices/dev_1/credentials/cert": {
+    status: 201,
+    body: {
+      data: {
+        credential: CERT_CREDENTIAL,
+        certificatePem: "CERT\n",
+        caCertificatePem: "CA\n",
+        broker: BROKER
+      }
+    }
+  },
+  "POST /v1/teams/team_1/devices/dev_1/credentials/cred_1/rotate": {
+    status: 201,
+    body: { data: { credential: CREDENTIAL, secret: "qmd_new" } }
+  },
+  "DELETE /v1/teams/team_1/devices/dev_1/credentials/cred_1": { status: 204 },
   "GET /v1/teams": { status: 200, body: page([team("team_1")]) },
   "GET /v1/teams/team_1/authorities": { status: 200, body: page([AUTHORITY]) },
   "POST /v1/teams/team_1/authorities": { status: 201, body: { data: AUTHORITY } },
