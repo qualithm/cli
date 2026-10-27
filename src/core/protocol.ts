@@ -5,6 +5,11 @@ import type { ErrorCode } from "../envelope.ts"
 /** The socket API's version. A change to a request or reply shape bumps it. */
 export const API_VERSION = 1
 
+/** The longest a `logs` request may wait for output. */
+export const MAX_WAIT_MS = 30000
+/** The most chunks one `logs` reply carries. */
+export const MAX_LIMIT = 1000
+
 const serialNumber = z.string().min(1).optional()
 
 const requestSchema = z.discriminatedUnion("verb", [
@@ -13,7 +18,16 @@ const requestSchema = z.discriminatedUnion("verb", [
   z.object({ api: z.number().int(), verb: z.literal("list") }),
   z.object({ api: z.number().int(), verb: z.literal("flash"), serialNumber }),
   z.object({ api: z.number().int(), verb: z.literal("reset"), serialNumber }),
-  z.object({ api: z.number().int(), verb: z.literal("run"), serialNumber, code: z.string() })
+  z.object({ api: z.number().int(), verb: z.literal("run"), serialNumber, code: z.string() }),
+  z.object({
+    api: z.number().int(),
+    verb: z.literal("logs"),
+    serialNumber,
+    after: z.number().int().min(0).optional(),
+    wait_ms: z.number().int().min(0).max(MAX_WAIT_MS).optional(),
+    limit: z.number().int().min(1).max(MAX_LIMIT).optional()
+  }),
+  z.object({ api: z.number().int(), verb: z.literal("write"), serialNumber, data: z.string() })
 ])
 
 /** One request line a client sends the core. */

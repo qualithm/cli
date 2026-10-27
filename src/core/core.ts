@@ -7,6 +7,7 @@ import {
   type CoreRequest,
   type CoreResponse,
   type Hello,
+  MAX_LIMIT,
   parseRequest
 } from "./protocol.ts"
 
@@ -77,6 +78,16 @@ export class Core {
         return this.#serial(async () => ops.reset(request.serialNumber))
       case "run":
         return this.#serial(async () => ops.run(request.serialNumber, request.code))
+      // Reading and typing skip the queue: a long read must not hold up a flash.
+      case "logs":
+        return ops.logs(
+          request.serialNumber,
+          request.after ?? 0,
+          request.wait_ms ?? 0,
+          request.limit ?? MAX_LIMIT
+        )
+      case "write":
+        return ops.write(request.serialNumber, request.data)
     }
   }
 

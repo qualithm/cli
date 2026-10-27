@@ -22,8 +22,10 @@ export type Tool<Shape extends z.ZodRawShape = z.ZodRawShape> = {
   name: string
   /** What the tool does, for the agent choosing it. */
   description: string
-  /** Whether it changes platform state; a mutating tool's input carries `dryRun`. */
+  /** Whether it changes state; a mutating tool's input carries `dryRun`. */
   mutating: boolean
+  /** True for a tool that acts on this computer, such as a plugged-in board, not the platform. */
+  local?: boolean
   /** The input fields. */
   input: Shape
   /**

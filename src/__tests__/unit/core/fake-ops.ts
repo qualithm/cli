@@ -48,6 +48,25 @@ export function fakeOps(): FakeOps {
         throw ops.fail
       }
       return Promise.resolve({ board: REF, output: "42\n" })
+    },
+    logs: async (serialNumber, after, waitMs, limit) => {
+      ops.calls.push(
+        `logs:${serialNumber ?? "-"}:${String(after)}:${String(waitMs)}:${String(limit)}`
+      )
+      return Promise.resolve({
+        board: REF,
+        chunks: [{ seq: after + 1, at_ms: 0, text: ">>> " }],
+        next: after + 1,
+        more: false
+      })
+    },
+    write: async (serialNumber, data) => {
+      ops.calls.push(`write:${serialNumber ?? "-"}:${data}`)
+      return Promise.resolve(REF)
+    },
+    close: async () => {
+      ops.calls.push("close")
+      return Promise.resolve()
     }
   }
   return ops

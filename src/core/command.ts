@@ -45,7 +45,8 @@ function print(io: CoreIo, json: boolean, result: Result, human: string): number
 
 async function runForeground(io: CoreIo, path: string, json: boolean): Promise<number> {
   let server: CoreServer | undefined
-  const core = new Core((io.boardOps ?? defaultBoardOps)(), VERSION, () => {
+  const ops = (io.boardOps ?? defaultBoardOps)()
+  const core = new Core(ops, VERSION, () => {
     void server?.close()
   })
   try {
@@ -62,6 +63,8 @@ async function runForeground(io: CoreIo, path: string, json: boolean): Promise<n
   io.stderr(`qualithm: core ${VERSION} listening on ${path}\n`)
   io.onListening?.(running)
   await running.closed
+  // Release the boards' ports, or their reads keep this process (and the ports) alive.
+  await ops.close()
   process.off("SIGINT", stop)
   process.off("SIGTERM", stop)
   return EXIT_CODES.ok

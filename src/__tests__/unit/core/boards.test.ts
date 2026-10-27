@@ -48,7 +48,13 @@ describe("pickRunning", () => {
 describe("boardOps", () => {
   const fast = { ...defaultRawReplConfig, enter_timeout_ms: 5000, exec_timeout_ms: 5000 }
 
-  const timing = { appear_timeout_ms: 1000, poll_ms: 1, sleep: async () => Promise.resolve() }
+  const timing = {
+    appear_timeout_ms: 1000,
+    poll_ms: 1,
+    sleep: async () => Promise.resolve(),
+    read_wait_ms: 1,
+    max_chunks: 10
+  }
 
   /** Lists `lists` in turn, repeating the last; the board is plugged in by default. */
   const ops = (
@@ -119,5 +125,20 @@ describe("boardOps", () => {
     await expect(ops(board, [[pico], []], { appear_timeout_ms: 5 }).reset()).rejects.toEqual(
       new CliError("the board didn't come back running MicroPython in time", "unavailable")
     )
+  })
+
+  it("reads and types through a tap, and closes it", async () => {
+    const board = new FakeBoard()
+    const o = ops(board, undefined, {
+      sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    })
+    expect(await o.write(undefined, "\r\x02")).toEqual({
+      port: "/dev/cu.pico",
+      serialNumber: "abc"
+    })
+    const page = await o.logs(undefined, 0, 1000, 10)
+    expect(page.chunks.map((c) => c.text).join("")).toContain("MicroPython")
+    await o.close()
+    expect(board.closed).toBe(true)
   })
 })
