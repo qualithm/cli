@@ -64,6 +64,20 @@ export function fakeOps(): FakeOps {
       ops.calls.push(`write:${serialNumber ?? "-"}:${data}`)
       return Promise.resolve(REF)
     },
+    deploy: async (serialNumber, files, dryRun) => {
+      ops.calls.push(
+        `deploy:${serialNumber ?? "-"}:${files.map((f) => f.path).join(",")}:${String(dryRun)}`
+      )
+      if (ops.fail !== undefined) {
+        throw ops.fail
+      }
+      return Promise.resolve({
+        board: REF,
+        written: files.map((f) => f.path),
+        removed: [],
+        unchanged: 0
+      })
+    },
     close: async () => {
       ops.calls.push("close")
       return Promise.resolve()

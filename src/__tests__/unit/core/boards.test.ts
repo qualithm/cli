@@ -141,4 +141,51 @@ describe("boardOps", () => {
     await o.close()
     expect(board.closed).toBe(true)
   })
+
+  it("deploys to a running board and reports the sync", async () => {
+    const board = new FakeBoard()
+    const result = await ops(board).deploy(
+      undefined,
+      [{ path: "/main.py", bytes: new Uint8Array([0x31]) }],
+      false
+    )
+    expect(result).toEqual({
+      board: { port: "/dev/cu.pico", serialNumber: "abc" },
+      written: ["/main.py"],
+      removed: [],
+      unchanged: 0
+    })
+    expect(board.closed).toBe(true)
+  })
+
+  it("flashes a blank board before deploying to it", async () => {
+    const board = new FakeBoard()
+    const flashed: string[] = []
+    const o = ops(board, [[waiting], [pico]], {
+      flash: async (serial) => {
+        flashed.push(serial ?? "-")
+        return Promise.resolve({ port: "/dev/cu.pico", version: "1.29.0", machine: "Pico" })
+      }
+    })
+    const result = await o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+    expect(result).toMatchObject({ flashed: "1.29.0", written: ["/main.py"] })
+    expect(flashed).toEqual(["-"])
+  })
+
+  it("says a blank board would be flashed on a dry run, touching nothing", async () => {
+    const board = new FakeBoard()
+    const result = await ops(board, [[waiting]]).deploy(
+      undefined,
+      [{ path: "/main.py", bytes: new Uint8Array() }],
+      true
+    )
+    expect(result).toEqual({
+      board: { port: "/Volumes/RP2350" },
+      written: ["/main.py"],
+      removed: [],
+      unchanged: 0,
+      flashed: "1.29.0"
+    })
+    expect(board.written).toEqual([])
+  })
 })

@@ -100,6 +100,26 @@ describe("Core", () => {
     expect(ops.calls.at(-1)).toBe("logs:-:0:0:1000")
   })
 
+  it("decodes a deploy's files and queues it like a flash", async () => {
+    const ops = fakeOps()
+    const data = Buffer.from("print(1)").toString("base64")
+    const reply = await core(ops).handle(
+      line({ verb: "deploy", files: [{ path: "/main.py", data }], dryRun: true })
+    )
+    expect(reply).toMatchObject({ ok: true, data: { written: ["/main.py"] } })
+    expect(ops.calls).toEqual(["deploy:-:/main.py:true"])
+    const again = await core(ops).handle(line({ verb: "deploy", files: [{ path: "/a", data }] }))
+    expect(again).toMatchObject({ ok: true })
+    expect(ops.calls.at(-1)).toBe("deploy:-:/a:false")
+  })
+
+  it("refuses a deploy file path that isn't absolute", async () => {
+    const reply = await core().handle(
+      line({ verb: "deploy", files: [{ path: "main.py", data: "" }] })
+    )
+    expect(reply).toMatchObject({ ok: false, error: { code: "usage" } })
+  })
+
   it("keeps a verb's error code", async () => {
     const ops = fakeOps()
     ops.fail = NOT_FOUND
