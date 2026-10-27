@@ -12,10 +12,10 @@ export type ParsedArgs = {
   positionals: readonly string[]
 }
 
-/** A `qualithm <resource> <verb>` command that runs a tool. */
+/** A `qualithm <resource> <verb>` (or single-word `qualithm <command>`) command that runs a tool. */
 export type ToolCommand = {
-  /** The resource and verb, e.g. `["token", "list"]`. */
-  path: readonly [string, string]
+  /** The resource and verb, e.g. `["token", "list"]`, or one word, e.g. `["apply"]`. */
+  path: readonly [string, string] | readonly [string]
   /** Other names for the verb. */
   aliases?: readonly string[]
   /** The tool it runs. */
