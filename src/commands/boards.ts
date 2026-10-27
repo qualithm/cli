@@ -2,6 +2,7 @@ import { parseArgs } from "node:util"
 
 import type { FlashResult } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
+import type { DeployResult } from "../core/boards.ts"
 import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
@@ -25,6 +26,7 @@ export type BoardIo = {
 }
 
 export const BOARD_USAGE = `Usage:
+  qualithm deploy [dir] [--serial S]        put a MicroPython project folder on a board and restart it
   qualithm board list                       the boards plugged into this computer
   qualithm board flash [--serial S]         put MicroPython on a board, blank or running
   qualithm board reset [--serial S]         restart a running board
@@ -81,14 +83,36 @@ function boardsTable(boards: Board[]): string {
   ])
 }
 
+function deployed(result: DeployResult, dryRun: boolean): string {
+  const lines: string[] = []
+  const would = dryRun ? "would " : ""
+  if (result.flashed !== undefined) {
+    lines.push(`${would}flash MicroPython ${result.flashed} first`)
+  }
+  for (const path of result.written) {
+    lines.push(`${would}write  ${path}`)
+  }
+  for (const path of result.removed) {
+    lines.push(`${would}remove ${path}`)
+  }
+  const changes = result.written.length + result.removed.length
+  const summary = dryRun
+    ? `dry-run: ${String(changes)} change(s), ${String(result.unchanged)} file(s) already match`
+    : `deployed to ${where(result.board)}: ${String(result.written.length)} written, ${String(result.removed.length)} removed, ${String(result.unchanged)} unchanged; restarted`
+  return `${[...lines, summary].join("\n")}\n`
+}
+
 function human(verb: string, data: unknown, dryRun: boolean): string {
   if (verb === "list") {
     return boardsTable(data as Board[])
   }
-  if (dryRun) {
+  if (dryRun && verb !== "deploy") {
     const { board } = data as { board: Board }
     const at = board.state === "micropython" ? where(board) : `BOOTSEL drive ${board.drive}`
     return `dry-run: would ${verb} ${at}\n`
+  }
+  if (verb === "deploy") {
+    return deployed(data as DeployResult, dryRun)
   }
   if (verb === "flash") {
     const result = data as FlashResult
@@ -114,10 +138,17 @@ function print(io: BoardIo, json: boolean, result: Result, text: () => string): 
   return exitCode(result)
 }
 
-function inputFor(verb: string, values: Values): Record<string, unknown> {
+function inputFor(
+  verb: string,
+  values: Values,
+  positionals: readonly string[]
+): Record<string, unknown> {
   const serial = stringOption(values, "serial")
   const input: Record<string, unknown> = serial === undefined ? {} : { serialNumber: serial }
-  if (verb === "flash" || verb === "reset" || verb === "console") {
+  if (verb === "deploy") {
+    input.dir = positionals[1] ?? "."
+  }
+  if (verb === "flash" || verb === "reset" || verb === "console" || verb === "deploy") {
     input.dryRun = values["dry-run"] === true
   }
   if (verb === "logs") {
@@ -137,6 +168,7 @@ function inputFor(verb: string, values: Values): Record<string, unknown> {
 }
 
 const TOOL_NAMES: Readonly<Record<string, string | undefined>> = {
+  deploy: "deploy_project",
   list: "list_boards",
   flash: "flash_board",
   reset: "reset_board",
@@ -301,7 +333,7 @@ export async function runBoard(args: readonly string[], io: BoardIo): Promise<nu
   const client = io.client ?? socketClient()
   let input: Record<string, unknown>
   try {
-    input = inputFor(verb, values)
+    input = inputFor(verb, values, positionals)
   } catch (error) {
     return print(io, json, failure(error), () => "")
   }

@@ -1,8 +1,11 @@
+import { resolve } from "node:path"
+
 import { z } from "zod"
 
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import { pickBoard } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
+import { collectProject } from "../board/sync.ts"
 import { pickRunning } from "../core/boards.ts"
 import type { CoreClient } from "../core/client.ts"
 import { MAX_LIMIT, MAX_WAIT_MS } from "../core/protocol.ts"
@@ -142,6 +145,30 @@ export function boardTools(client: CoreClient): Tool[] {
         return client.send({
           verb: "reset",
           ...(input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber })
+        })
+      }
+    }),
+    defineTool({
+      name: "deploy_project",
+      description:
+        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential.",
+      mutating: true,
+      local: true,
+      input: {
+        dir: z.string().min(1).describe("the project folder on this computer"),
+        ...serialNumber,
+        ...dryRunInput
+      },
+      run: async (_session, input) => {
+        const files = await collectProject(resolve(input.dir))
+        return client.send({
+          verb: "deploy",
+          ...(input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber }),
+          files: files.map((f) => ({
+            path: f.path,
+            data: Buffer.from(f.bytes).toString("base64")
+          })),
+          dryRun: input.dryRun === true
         })
       }
     }),

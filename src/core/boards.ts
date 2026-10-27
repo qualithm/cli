@@ -1,13 +1,27 @@
-import { defaultFlashConfig, flashMicroPython, type FlashResult } from "../board/flash.ts"
+import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
+import {
+  defaultFlashConfig,
+  flashMicroPython,
+  type FlashResult,
+  pickBoard
+} from "../board/flash.ts"
 import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
 import type { SerialPort } from "../board/serial.ts"
+import { type ProjectFile, syncProject, type SyncResult } from "../board/sync.ts"
 import { CliError } from "../envelope.ts"
 import { type LogPage, Taps } from "./taps.ts"
 
 /** A board the core acted on. */
 export type BoardRef = { port: string; serialNumber?: string }
+
+/** What a deploy did to one board. */
+export type DeployResult = SyncResult & {
+  board: BoardRef
+  /** The MicroPython release flashed first, when the board was blank. */
+  flashed?: string
+}
 
 /** What the core does with boards; the real machine by default, fakes in tests. */
 export type BoardOps = {
@@ -29,6 +43,15 @@ export type BoardOps = {
   ) => Promise<LogPage>
   /** Types text into a board's console. */
   write: (serialNumber: string | undefined, data: string) => Promise<BoardRef>
+  /**
+   * Makes a board's files match a project and restarts it, flashing MicroPython first when the
+   * board is blank.
+   */
+  deploy: (
+    serialNumber: string | undefined,
+    files: ProjectFile[],
+    dryRun: boolean
+  ) => Promise<DeployResult>
   /** Releases every port the operations hold open. */
   close: () => Promise<void>
 }
@@ -159,6 +182,30 @@ export function boardOps(deps: BoardDeps): BoardOps {
           runCode(port, code, deps.repl)
         )
         return { board: ref(board), output: result }
+      }),
+    deploy: async (serialNumber, files, dryRun) =>
+      taps.hold(async () => {
+        let flashed: string | undefined
+        const target = pickBoard(await deps.list(), serialNumber)
+        if (target.state === "bootsel") {
+          if (dryRun) {
+            // A blank board would be flashed, then get every file.
+            const written = files.map((f) => f.path)
+            const { version } = MICROPYTHON_PICO_2_W
+            return {
+              board: { port: target.drive },
+              written,
+              removed: [],
+              unchanged: 0,
+              flashed: version
+            }
+          }
+          flashed = (await deps.flash(serialNumber)).version
+        }
+        const { board, result } = await withBoard(serialNumber, async (port) =>
+          syncProject(port, files, dryRun, deps.repl)
+        )
+        return { board: ref(board), ...result, ...(flashed === undefined ? {} : { flashed }) }
       }),
     logs: async (serialNumber, after, waitMs, limit) =>
       taps.logs(serialNumber, after, waitMs, limit),

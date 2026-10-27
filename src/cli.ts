@@ -70,6 +70,7 @@ Usage:
   qualithm <resource> <verb> [flags]
   qualithm apply <manifest.yaml> [flags]
   qualithm mcp                          serve every tool over stdio, for an agent
+  qualithm deploy [dir]                 put a MicroPython project on a plugged-in board
   qualithm board <verb> [flags]         a board plugged into this computer (see board --help)
   qualithm core run | status | stop     the local device core (started for you when needed)
 
@@ -213,6 +214,8 @@ const SUBPROGRAMS: Readonly<
 > = {
   mcp: runMcp,
   board: async (args, io) => runBoard(args, { ...io.board, stdout: io.stdout, stderr: io.stderr }),
+  deploy: async (args, io) =>
+    runBoard(["deploy", ...args], { ...io.board, stdout: io.stdout, stderr: io.stderr }),
   core: async (args, io) => runCore(args, { ...io.core, stdout: io.stdout, stderr: io.stderr })
 }
 
