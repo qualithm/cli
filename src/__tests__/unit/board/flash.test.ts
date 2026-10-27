@@ -156,11 +156,14 @@ describe("flashMicroPython", () => {
     )
   })
 
-  it("fails when the board never shows up as a drive", async () => {
+  it("tells the builder to replug when the board never shows up as a drive", async () => {
     const r = rig()
     r.lists.push([running()], [])
     await expect(flashMicroPython(r.config, undefined, FIRMWARE)).rejects.toEqual(
-      new CliError("the board didn't show up as a drive in time", "unavailable")
+      new CliError(
+        "the board restarted into BOOTSEL but no drive appeared: unplug it, plug it back in, and flash again",
+        "unavailable"
+      )
     )
   })
 
