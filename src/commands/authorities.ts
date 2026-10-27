@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs"
-
 import type { Authority, AuthorityPage } from "@qualithm/platform"
 
 import { CliError } from "../envelope.ts"
@@ -9,18 +7,10 @@ import {
   type Command,
   intOption,
   type ParsedArgs,
+  readFileArg,
   requirePositional,
   stringOption
 } from "./command.ts"
-
-function readCertificate(path: string): string {
-  try {
-    return readFileSync(path, "utf8")
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    throw new CliError(`read cert: ${reason}`, "error")
-  }
-}
 
 /** `qualithm authority …`: list, register and revoke device certificate authorities. */
 export const authorityCommands: readonly Command[] = [
@@ -63,7 +53,7 @@ export const authorityCommands: readonly Command[] = [
       if (certFile === undefined) {
         throw new CliError("--cert-file is required for byo authorities")
       }
-      return { name, kind, certificatePem: readCertificate(certFile) }
+      return { name, kind, certificatePem: readFileArg(certFile, "cert") }
     },
     human: (data: unknown): string => {
       const authority = data as Authority
