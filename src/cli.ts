@@ -61,6 +61,7 @@ export const USAGE = `qualithm: the Qualithm CLI and MCP server.
 
 Usage:
   qualithm <resource> <verb> [flags]
+  qualithm apply <manifest.yaml> [flags]
   qualithm mcp                          serve every tool over stdio, for an agent
 
 Flags, accepted by every verb before or after its arguments:
@@ -77,6 +78,7 @@ Resources and verbs:
   enrollment list | create | revoke <id>
   space      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
+  apply      <manifest.yaml>            idempotent device-as-code reconcile
   version                               print the CLI version
 
 Examples:
@@ -85,6 +87,7 @@ Examples:
   qualithm credential mint --device dev_123 --json
   qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
+  qualithm apply fleet.yaml --dry-run
 
 Exit codes:
   0 ok (incl. dry-run)  1 error  2 usage  3 auth  4 not-found  5 conflict
@@ -96,6 +99,7 @@ function findCommand(resource: string, verb: string): Command | undefined {
   return COMMANDS.find(
     (command) =>
       command.path[0] === name &&
+      command.path.length === 2 &&
       (command.path[1] === verb || (command.aliases?.includes(verb) ?? false))
   )
 }
@@ -215,6 +219,11 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
       return runMcp(second === undefined ? rest : [second, ...rest], io)
     default:
       break
+  }
+  // A single-word command, such as `apply`, takes its arguments where a verb would be.
+  const single = COMMANDS.find((c): c is ToolCommand => c.path.length === 1 && c.path[0] === first)
+  if (single !== undefined) {
+    return runToolCommand(single, argv.slice(1), io)
   }
   if (second === undefined || second === "-h" || second === "--help" || second === "help") {
     const known = COMMANDS.some((c) => c.path[0] === (RESOURCE_ALIASES[first] ?? first))
