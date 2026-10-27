@@ -6,7 +6,7 @@
       "name": "@qualithm/npm-example",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.1",
-        "@qualithm/platform": "0.3.0",
+        "@qualithm/platform": "0.4.0",
         "zod": "4.6.7",
       },
       "devDependencies": {
@@ -108,7 +108,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.155.0", "", {}, "sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q=="],
 
-    "@qualithm/platform": ["@qualithm/platform@0.3.0", "", {}, "sha512-AANglY1Q87piFRdxbL5RtXNReUNopfPQ/m08gsY8OESX2C1wNWmndLY1B2zinaxmSfkHtsjVlSFzH0DnV9siuw=="],
+    "@qualithm/platform": ["@qualithm/platform@0.4.0", "", {}, "sha512-QSerebb2/YvX2Gd4COF2+pegqK65pEAVFnftIPkKJRB2t1qAGqCHpWqn7yux4DpMgz+tGsLycA/8mVMKS/WgVQ=="],
 
     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.15", "", { "os": "android", "cpu": "arm" }, "sha512-aLcgK9gIJ3YRvrrtfSBbRa27F5WrpiTaPulnFpsHPxpUHgFlSgnU4854MHwoRGEBhfRJDWCS2WQ7lIjskE9Olw=="],
 
