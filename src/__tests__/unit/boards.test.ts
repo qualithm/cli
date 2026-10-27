@@ -162,6 +162,57 @@ describe("board tools", () => {
   })
 })
 
+async function projectDir(): Promise<string> {
+  const { mkdtemp, writeFile } = await import("node:fs/promises")
+  const { tmpdir } = await import("node:os")
+  const { join } = await import("node:path")
+  const dir = await mkdtemp(join(tmpdir(), "proj-"))
+  await writeFile(join(dir, "main.py"), "print(1)")
+  return dir
+}
+
+describe("deploy", () => {
+  it("sends the project's files to the core", async () => {
+    const ops = fakeOps()
+    const dir = await projectDir()
+    const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, { dir })
+    expect(result).toMatchObject({ ok: true, data: { written: ["/main.py"] } })
+    expect(ops.calls).toEqual(["deploy:-:/main.py:false"])
+  })
+
+  it("prints what it wrote, or would write", async () => {
+    const ops = fakeOps()
+    const dir = await projectDir()
+    const c = capture({ client: clientOf(ops) })
+    const code = await run(["deploy", dir, "--serial", "abc"], c)
+    expect(c.err()).toBe("")
+    expect(code).toBe(0)
+    expect(c.out()).toBe(
+      "write  /main.py\ndeployed to abc on /dev/cu.pico: 1 written, 0 removed, 0 unchanged; restarted\n"
+    )
+    ops.deploy = async () =>
+      Promise.resolve({
+        board: { port: "/Volumes/RP2350" },
+        written: ["/main.py"],
+        removed: ["/old.py"],
+        unchanged: 2,
+        flashed: "1.29.0"
+      })
+    const dry = capture({ client: clientOf(ops) })
+    expect(await run(["deploy", dir, "--dry-run"], dry)).toBe(0)
+    expect(dry.out()).toBe(
+      "would flash MicroPython 1.29.0 first\nwould write  /main.py\nwould remove /old.py\ndry-run: 2 change(s), 2 file(s) already match\n"
+    )
+    expect(ops.calls[0]).toBe("deploy:abc:/main.py:false")
+  })
+
+  it("deploys the current folder by default and names a missing one", async () => {
+    const c = capture({ client: clientOf(fakeOps()) })
+    expect(await run(["board", "deploy", "/no/such/project", "--json"], c)).toBe(4)
+    expect(JSON.parse(c.out())).toMatchObject({ ok: false, code: "not_found" })
+  })
+})
+
 describe("qualithm board", () => {
   it("lists boards as a table, or as json", async () => {
     const ops = fakeOps()

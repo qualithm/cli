@@ -78,6 +78,15 @@ export class Core {
         return this.#serial(async () => ops.reset(request.serialNumber))
       case "run":
         return this.#serial(async () => ops.run(request.serialNumber, request.code))
+      case "deploy": {
+        const files = request.files.map((f) => ({
+          path: f.path,
+          bytes: new Uint8Array(Buffer.from(f.data, "base64"))
+        }))
+        return this.#serial(async () =>
+          ops.deploy(request.serialNumber, files, request.dryRun === true)
+        )
+      }
       // Reading and typing skip the queue: a long read must not hold up a flash.
       case "logs":
         return ops.logs(

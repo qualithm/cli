@@ -27,7 +27,14 @@ const requestSchema = z.discriminatedUnion("verb", [
     wait_ms: z.number().int().min(0).max(MAX_WAIT_MS).optional(),
     limit: z.number().int().min(1).max(MAX_LIMIT).optional()
   }),
-  z.object({ api: z.number().int(), verb: z.literal("write"), serialNumber, data: z.string() })
+  z.object({ api: z.number().int(), verb: z.literal("write"), serialNumber, data: z.string() }),
+  z.object({
+    api: z.number().int(),
+    verb: z.literal("deploy"),
+    serialNumber,
+    files: z.array(z.object({ path: z.string().regex(/^\/./), data: z.string() })).min(1),
+    dryRun: z.boolean().optional()
+  })
 ])
 
 /** One request line a client sends the core. */
