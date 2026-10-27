@@ -10,6 +10,7 @@ import { deviceCommands } from "./commands/devices.ts"
 import { enrollmentCommands } from "./commands/enrollments.ts"
 import { spaceCommands } from "./commands/spaces.ts"
 import { tokenCommands } from "./commands/tokens.ts"
+import { type CoreIo, runCore } from "./core/command.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
 import { buildMcpServer, callTool, type SessionFactory } from "./mcp.ts"
 import { type FetchAPI, Session, type SessionConfig } from "./platform.ts"
@@ -25,6 +26,8 @@ export type CliIo = {
   fetch?: FetchAPI
   /** Serves `qualithm mcp`; defaults to stdio. */
   serveMcp?: (server: ReturnType<typeof buildMcpServer>) => Promise<void>
+  /** What `qualithm core run` reaches for; defaults to the real machine. */
+  core?: Omit<CoreIo, "stdout" | "stderr">
 }
 
 /** Every command, in the order help lists them. */
@@ -63,6 +66,7 @@ Usage:
   qualithm <resource> <verb> [flags]
   qualithm apply <manifest.yaml> [flags]
   qualithm mcp                          serve every tool over stdio, for an agent
+  qualithm core run | status | stop     the local device core (started for you when needed)
 
 Flags, accepted by every verb before or after its arguments:
   --url string     API base URL (env QUALITHM_API_URL)
@@ -192,6 +196,14 @@ async function runMcp(args: string[], io: CliIo): Promise<number> {
   return EXIT_CODES.ok
 }
 
+/** Commands that parse their own arguments. */
+const SUBPROGRAMS: Readonly<
+  Record<string, ((args: string[], io: CliIo) => Promise<number>) | undefined>
+> = {
+  mcp: runMcp,
+  core: async (args, io) => runCore(args, { ...io.core, stdout: io.stdout, stderr: io.stderr })
+}
+
 /**
  * Runs one CLI invocation. Never throws: every failure becomes an exit code and a message.
  *
@@ -215,10 +227,12 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
     case "-v":
       io.stdout(`qualithm ${VERSION}\n`)
       return EXIT_CODES.ok
-    case "mcp":
-      return runMcp(second === undefined ? rest : [second, ...rest], io)
     default:
       break
+  }
+  const subprogram = SUBPROGRAMS[first]
+  if (subprogram !== undefined) {
+    return subprogram(argv.slice(1), io)
   }
   // A single-word command, such as `apply`, takes its arguments where a verb would be.
   const single = COMMANDS.find((c): c is ToolCommand => c.path.length === 1 && c.path[0] === first)
