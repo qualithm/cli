@@ -89,7 +89,40 @@ const CERT_CREDENTIAL = {
 
 const BROKER = { host: "gw.qualithm.com", port: 8883 }
 
+/** A device as the API returns it. */
+export const DEVICE = {
+  id: "dev_1",
+  spaceId: "spc_1",
+  spaceName: "lab",
+  teamId: "team_1",
+  name: "sensor",
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z",
+  parkedAt: null
+}
+
+/** A space as the API returns it. */
+export const SPACE = {
+  id: "spc_1",
+  teamId: "team_1",
+  name: "lab",
+  zone: "de-fra-a",
+  createdAt: "2026-10-01T00:00:00.000Z",
+  updatedAt: "2026-10-01T00:00:00.000Z",
+  deviceTotal: 1
+}
+
 export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
+  "GET /v1/teams/team_1/devices": { status: 200, body: page([DEVICE]) },
+  "POST /v1/teams/team_1/devices": { status: 201, body: { data: DEVICE } },
+  "GET /v1/teams/team_1/devices/dev_1": { status: 200, body: { data: DEVICE } },
+  "PATCH /v1/teams/team_1/devices/dev_1": { status: 204 },
+  "DELETE /v1/teams/team_1/devices/dev_1": { status: 204 },
+  "GET /v1/teams/team_1/spaces": { status: 200, body: page([SPACE]) },
+  "POST /v1/teams/team_1/spaces": { status: 201, body: { data: SPACE } },
+  "GET /v1/teams/team_1/spaces/spc_1": { status: 200, body: { data: SPACE } },
+  "PATCH /v1/teams/team_1/spaces/spc_1": { status: 204 },
+  "DELETE /v1/teams/team_1/spaces/spc_1": { status: 204 },
   "GET /v1/teams/team_1/devices/dev_1/credentials": { status: 200, body: { data: [CREDENTIAL] } },
   "POST /v1/teams/team_1/devices/dev_1/credentials": {
     status: 201,
