@@ -32,9 +32,11 @@ export async function callTool(
     return failure(new CliError(field === "" ? detail : `${field}: ${detail}`))
   }
   const input = parsed.data as Record<string, unknown>
+  const dryRun = tool.mutating && input.dryRun === true
   try {
-    const session = newSession(tool.mutating && input.dryRun === true)
-    return success(await tool.run(session, input))
+    const data = await tool.run(newSession(dryRun), input)
+    // A tool that plans several changes reports them as data; mark the envelope a dry run too.
+    return dryRun ? { ...success(data), dryRun: true } : success(data)
   } catch (error) {
     return failure(error)
   }
