@@ -2,6 +2,7 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util"
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
+import { applyCommands } from "./commands/apply.ts"
 import { authorityCommands } from "./commands/authorities.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
 import { credentialCommands } from "./commands/credentials.ts"
@@ -33,7 +34,8 @@ export const COMMANDS: readonly Command[] = [
   ...deviceCommands,
   ...enrollmentCommands,
   ...spaceCommands,
-  ...tokenCommands
+  ...tokenCommands,
+  ...applyCommands
 ]
 
 const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
