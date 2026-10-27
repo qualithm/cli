@@ -108,6 +108,16 @@ describe("apply", () => {
     )
   })
 
+  it("marks the JSON envelope a dry run", async () => {
+    const c = capture({}, routes())
+    expect(await run(["apply", manifest(ONE), "--dry-run", "--json"], c.io)).toBe(0)
+    expect(JSON.parse(c.out())).toEqual({
+      ok: true,
+      dryRun: true,
+      data: [{ space: "spc_1", device: "gw-1", action: "would-create" }]
+    })
+  })
+
   it("passes on a failed list or create", async () => {
     const forbidden = capture(
       {},
