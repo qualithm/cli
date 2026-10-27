@@ -143,10 +143,26 @@ describe("token create", () => {
 })
 
 describe("mcp", () => {
-  it("fails at start without a token", async () => {
-    const c = capture({ env: {} })
-    expect(await run(["mcp"], c.io)).toBe(2)
-    expect(c.err()).toMatch(/^qualithm: api token missing/)
+  it("serves only the board tools without a token", async () => {
+    let names: string[] = []
+    const c = capture({
+      env: {},
+      serveMcp: async (server) => {
+        await Promise.resolve()
+        names = Object.keys(
+          (server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools
+        )
+      }
+    })
+    expect(await run(["mcp"], c.io)).toBe(0)
+    expect(c.err()).toMatch(/^qualithm: api token missing.*; serving only the board tools\n$/)
+    expect(names.sort()).toEqual([
+      "board_console",
+      "board_logs",
+      "flash_board",
+      "list_boards",
+      "reset_board"
+    ])
   })
 
   it("serves the tools when a token is set", async () => {

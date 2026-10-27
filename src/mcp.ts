@@ -10,9 +10,19 @@ import type { Tool } from "./tools/tool.ts"
 /** Builds the platform session one call runs on. */
 export type SessionFactory = (dryRun: boolean) => Session
 
+/** What a local tool gets in place of a session; touching it is a bug in the tool. */
+const NO_SESSION = new Proxy(
+  {},
+  {
+    get: () => {
+      throw new CliError("a local tool reached for the platform session", "error")
+    }
+  }
+) as Session
+
 /**
- * Runs one tool: validates its input, opens a session (in dry-run mode when asked), and returns
- * the envelope. Never throws.
+ * Runs one tool: validates its input, opens a session (in dry-run mode when asked) unless the
+ * tool is local, and returns the envelope. Never throws.
  *
  * @param tool - the tool
  * @param newSession - builds the session
@@ -34,7 +44,8 @@ export async function callTool(
   const input = parsed.data as Record<string, unknown>
   const dryRun = tool.mutating && input.dryRun === true
   try {
-    const data = await tool.run(newSession(dryRun), input)
+    const session = tool.local === true ? NO_SESSION : newSession(dryRun)
+    const data = await tool.run(session, input)
     // A tool that plans several changes reports them as data; mark the envelope a dry run too.
     return dryRun ? { ...success(data), dryRun: true } : success(data)
   } catch (error) {

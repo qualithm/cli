@@ -15,9 +15,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   coreAnswers,
+  defaultEnsureConfig,
   ensureCore,
   selfCommand,
   sendCore,
+  socketClient,
   startDetached
 } from "../../../core/client.ts"
 import { Core } from "../../../core/core.ts"
@@ -267,6 +269,45 @@ describe.skipIf(process.platform === "win32")("ensureCore", () => {
     await expect(
       ensureCore(path, { ...wait, wait_ms: 20, start: () => undefined })
     ).rejects.toEqual(new CliError(`the core didn't start on ${path} in time`, "unavailable"))
+  })
+})
+
+describe.skipIf(process.platform === "win32")("socketClient", () => {
+  const wait = {
+    wait_ms: 2000,
+    poll_ms: 5,
+    sleep: async (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+  }
+
+  it("starts the core on first use, then reuses it", async () => {
+    const path = socketIn()
+    const start = vi.fn((p: string) => {
+      void serve(p)
+    })
+    const client = socketClient(path, { ...wait, start })
+    expect(await client.send({ verb: "list" })).toEqual([BOARD])
+    expect(await client.send({ verb: "hello" })).toMatchObject({ version: "9.9.9" })
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it("tries to start the core again after a failed start", async () => {
+    const path = socketIn()
+    let tries = 0
+    const start = (p: string): void => {
+      tries++
+      if (tries > 1) {
+        void serve(p)
+      }
+    }
+    const client = socketClient(path, { ...wait, wait_ms: 30, start })
+    await expect(client.send({ verb: "list" })).rejects.toMatchObject({ code: "unavailable" })
+    expect(await client.send({ verb: "list" })).toEqual([BOARD])
+    expect(tries).toBe(2)
+  })
+
+  it("defaults to the user's own socket", () => {
+    expect(socketClient()).toHaveProperty("send")
+    expect(defaultEnsureConfig.wait_ms).toBeGreaterThan(0)
   })
 })
 

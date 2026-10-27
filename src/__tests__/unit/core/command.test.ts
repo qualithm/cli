@@ -44,7 +44,8 @@ function capture(): Captured {
 
 /** Starts `qualithm core run` in this process and resolves once it listens. */
 async function startCore(
-  path: string
+  path: string,
+  ops = fakeOps()
 ): Promise<{ io: Captured; server: CoreServer; exited: Promise<number> }> {
   const io = capture()
   let listening: (server: CoreServer) => void = () => undefined
@@ -52,7 +53,7 @@ async function startCore(
     listening = resolve
   })
   io.core = {
-    boardOps: fakeOps,
+    boardOps: () => ops,
     serve: { platform: process.platform, sweep_interval_ms: 10 },
     onListening: listening
   }
@@ -61,9 +62,10 @@ async function startCore(
 }
 
 describe.skipIf(process.platform === "win32")("qualithm core", () => {
-  it("runs, reports status and stops", async () => {
+  it("runs, reports status and stops, releasing the boards", async () => {
     const path = socketIn()
-    const core = await startCore(path)
+    const ops = fakeOps()
+    const core = await startCore(path, ops)
     expect(core.io.err()).toBe(`qualithm: core ${VERSION} listening on ${path}\n`)
 
     const status = capture()
@@ -81,6 +83,7 @@ describe.skipIf(process.platform === "win32")("qualithm core", () => {
     expect(await run(["core", "stop", "--socket", path], stop)).toBe(0)
     expect(stop.out()).toBe("core stopped\n")
     expect(await core.exited).toBe(0)
+    expect(ops.calls.at(-1)).toBe("close")
     expect(await coreAnswers(path)).toBe(false)
   })
 
