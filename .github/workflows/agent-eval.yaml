@@ -1,0 +1,108 @@
+# Weekly agent-native end-to-end eval: drives the documented agent path through `qualithm mcp` —
+# provision with the MCP tools, claim and connect with @qualithm/device, publish telemetry, read it
+# back — and files a deduped issue on pm when any step of this job fails. The friction log lands in
+# the run summary every time and in the issue body on failure.
+#
+# Needs the QUALITHM_EVAL_API_TOKEN repo secret (a member API token for the eval team). While it is
+# unset the eval exits 2 without running and the job stays green: a missing secret is an operational
+# precondition, not a product regression.
+name: Agent Eval
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays at 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      force-failure:
+        description: Fail the eval without running it, to exercise the failure report
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Claim → connect → telemetry round-trip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Bun
+        id: setup
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: Build the CLI
+        id: build
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+      - name: Run the eval
+        id: eval
+        env:
+          QUALITHM_API_TOKEN: ${{ secrets.QUALITHM_EVAL_API_TOKEN }}
+          FORCE_FAILURE: ${{ inputs.force-failure }}
+        run: |
+          if [ "$FORCE_FAILURE" = "true" ]; then
+            echo "Forced failure: the eval did not run." | tee "$RUNNER_TEMP/eval-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          set +e
+          bun run src/eval/cli.ts --server "$PWD/dist/bin/qualithm.js" --out "$RUNNER_TEMP/eval-report.json" \
+            | tee "$RUNNER_TEMP/eval-summary.txt"
+          code=${PIPESTATUS[0]}
+          set -e
+          cat "$RUNNER_TEMP/eval-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          # Exit 2: no token, so the eval never ran and there is nothing to report.
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::QUALITHM_EVAL_API_TOKEN is not set; the eval did not run"
+            exit 0
+          fi
+          exit "$code"
+      - name: Create app token for pm issue filing
+        id: app-token
+        if: always()
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.PROJECTS_GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_GH_APP_PRIVATE_KEY }}
+          owner: qualithm
+      - name: Load the report body
+        id: report
+        if: failure()
+        env:
+          FAILED_STEP: >-
+            ${{ steps.checkout.outcome == 'failure' && 'Checkout'
+            || steps.setup.outcome == 'failure' && 'Set up Bun'
+            || steps.build.outcome == 'failure' && 'Build the CLI'
+            || 'Run the eval' }}
+        run: |
+          {
+            echo "body<<EOF"
+            if [ -s "$RUNNER_TEMP/eval-summary.txt" ]; then
+              cat "$RUNNER_TEMP/eval-summary.txt"
+            else
+              echo "The eval did not run: the \"$FAILED_STEP\" step failed. See the run log."
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Report failure
+        if: failure() && steps.app-token.outcome == 'success'
+        uses: ./.github/actions/report-scan-failure
+        with:
+          mode: report
+          title: "${{ github.event.repository.name }}: agent-native end-to-end eval failed"
+          label: agent-eval,off-board
+          body: ${{ steps.report.outputs.body }}
+          github-token: ${{ steps.app-token.outputs.token }}
+      - name: Resolve stale failure issue
+        if: success()
+        uses: ./.github/actions/report-scan-failure
+        with:
+          mode: resolve
+          title: "${{ github.event.repository.name }}: agent-native end-to-end eval failed"
+          label: agent-eval,off-board
+          github-token: ${{ steps.app-token.outputs.token }}

@@ -6,13 +6,17 @@ import { defaultRawReplConfig, RawRepl, type RawReplConfig } from "../../../boar
 import { CliError } from "../../../envelope.ts"
 import { FakeBoard } from "./fake-board.ts"
 
+// Generous, so a slow test runner never times out a board that does answer.
 const fast: RawReplConfig = {
   ...defaultRawReplConfig,
-  enter_timeout_ms: 50,
-  exec_timeout_ms: 50,
+  enter_timeout_ms: 5000,
+  exec_timeout_ms: 5000,
   chunk_bytes: 8,
   chunk_pause_ms: 0
 }
+
+// For the tests that wait out a board that never answers.
+const short: RawReplConfig = { ...fast, enter_timeout_ms: 50, exec_timeout_ms: 50 }
 
 const MACHINE = "import sys\nprint(sys.implementation._machine)"
 
@@ -48,7 +52,7 @@ describe("runCode", () => {
   it("fails as unavailable when the board never answers", async () => {
     const board = new FakeBoard()
     board.answers = false
-    const error = await runCode(board, "print(1)", fast).catch((e: unknown) => e)
+    const error = await runCode(board, "print(1)", short).catch((e: unknown) => e)
     expect(error).toMatchObject({
       code: "unavailable",
       message: "the board didn't answer in time: enter the raw REPL"
@@ -57,7 +61,7 @@ describe("runCode", () => {
 
   it("fails as unavailable when code never finishes", async () => {
     const board = new FakeBoard({ "while True: pass": "silent" })
-    const error = await runCode(board, "while True: pass", fast).catch((e: unknown) => e)
+    const error = await runCode(board, "while True: pass", short).catch((e: unknown) => e)
     expect(error).toMatchObject({
       code: "unavailable",
       message: "the board didn't answer in time: run code"
@@ -133,7 +137,7 @@ describe("resetBoard and enterBootsel", () => {
   it("still fails a reset the board never answers", async () => {
     const board = new FakeBoard()
     board.answers = false
-    await expect(resetBoard(board, fast)).rejects.toMatchObject({ code: "unavailable" })
+    await expect(resetBoard(board, short)).rejects.toMatchObject({ code: "unavailable" })
   })
 
   it("fails a reset the board refuses", async () => {
