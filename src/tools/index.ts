@@ -1,4 +1,11 @@
 import { createAuthority, listAuthorities, revokeAuthority } from "./authorities.ts"
+import {
+  issueCert,
+  listCredentials,
+  mintCredential,
+  revokeCredential,
+  rotateCredential
+} from "./credentials.ts"
 import { createEnrollment, listEnrollments, revokeEnrollment } from "./enrollments.ts"
 import { listApiTokens, revokeApiToken } from "./tokens.ts"
 import type { Tool } from "./tool.ts"
@@ -8,6 +15,11 @@ export const TOOLS: readonly Tool[] = [
   listAuthorities,
   createAuthority,
   revokeAuthority,
+  listCredentials,
+  mintCredential,
+  issueCert,
+  rotateCredential,
+  revokeCredential,
   listEnrollments,
   createEnrollment,
   revokeEnrollment,

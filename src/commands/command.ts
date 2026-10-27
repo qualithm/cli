@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { CliError } from "../envelope.ts"
 import type { Tool } from "../tools/tool.ts"
 
@@ -92,4 +94,21 @@ export function requirePositional(
     throw new CliError(`${label} is required`)
   }
   return value
+}
+
+/**
+ * Reads a file a flag names.
+ *
+ * @param path - the path
+ * @param what - what the file holds, for the error
+ * @returns the file's text
+ * @throws {CliError} with code `error` when the file can't be read
+ */
+export function readFileArg(path: string, what: string): string {
+  try {
+    return readFileSync(path, "utf8")
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new CliError(`read ${what}: ${reason}`, "error")
+  }
 }

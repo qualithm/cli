@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { authorityCommands } from "./commands/authorities.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
+import { credentialCommands } from "./commands/credentials.ts"
 import { enrollmentCommands } from "./commands/enrollments.ts"
 import { tokenCommands } from "./commands/tokens.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
@@ -26,12 +27,14 @@ export type CliIo = {
 /** Every command, in the order help lists them. */
 export const COMMANDS: readonly Command[] = [
   ...authorityCommands,
+  ...credentialCommands,
   ...enrollmentCommands,
   ...tokenCommands
 ]
 
 const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
   authorities: "authority",
+  credentials: "credential",
   enrollments: "enrollment",
   tokens: "token",
   "api-token": "token"
@@ -61,12 +64,15 @@ Flags, accepted by every verb before or after its arguments:
 
 Resources and verbs:
   authority  list | create | revoke <id>
+  credential list | mint | cert | rotate | revoke
   enrollment list | create | revoke <id>
   token      list | revoke <id>
   version                               print the CLI version
 
 Examples:
   qualithm enrollment create --space spc_123 --label lab-floor-2
+  qualithm credential mint --device dev_123 --json
+  qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
 
 Exit codes:
