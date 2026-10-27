@@ -1,6 +1,8 @@
+import { socketClient } from "../core/client.ts"
 import { createAuthority, listAuthorities, revokeAuthority } from "./authorities.ts"
 import { automationTools } from "./automations.ts"
 import { billingTools } from "./billing.ts"
+import { boardTools } from "./boards.ts"
 import {
   issueCert,
   listCredentials,
@@ -55,5 +57,6 @@ export const TOOLS: readonly Tool[] = [
   ...observabilityTools,
   ...workspaceTools,
   ...automationTools,
-  ...billingTools
+  ...billingTools,
+  ...boardTools(socketClient())
 ]

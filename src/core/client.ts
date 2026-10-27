@@ -11,6 +11,7 @@ import {
   type Hello,
   type Unversioned
 } from "./protocol.ts"
+import { coreLogPath, corePath } from "./socket.ts"
 
 const STALE = "run `qualithm core stop`, then try again"
 
@@ -171,5 +172,47 @@ export function startDetached(path: string, log: string, command: string[] = sel
     child.unref()
   } finally {
     closeSync(out)
+  }
+}
+
+/** Sends requests to a device core; the faces' one seam onto it. */
+export type CoreClient = {
+  send: (request: Unversioned<CoreRequest>) => Promise<unknown>
+}
+
+/** The production start and wait: a detached core, given ten seconds to listen. */
+export const defaultEnsureConfig: EnsureConfig = {
+  start: (path) => {
+    startDetached(path, coreLogPath())
+  },
+  wait_ms: 10000,
+  poll_ms: 50,
+  sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * A client of the user's core over its socket. The first request starts the core when none is
+ * running and checks its version.
+ *
+ * @param path - the socket path or Windows pipe name
+ * @param ensure - how to start and wait for a core
+ * @returns the client
+ */
+export function socketClient(
+  path: string = corePath(),
+  ensure: EnsureConfig = defaultEnsureConfig
+): CoreClient {
+  let ready: Promise<Hello> | undefined
+  return {
+    send: async (request) => {
+      ready ??= ensureCore(path, ensure)
+      try {
+        await ready
+      } catch (error) {
+        ready = undefined
+        throw error
+      }
+      return sendCore(path, request)
+    }
   }
 }

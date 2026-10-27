@@ -4,6 +4,7 @@ import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
 import type { SerialPort } from "../board/serial.ts"
 import { CliError } from "../envelope.ts"
+import { type LogPage, Taps } from "./taps.ts"
 
 /** A board the core acted on. */
 export type BoardRef = { port: string; serialNumber?: string }
@@ -19,6 +20,17 @@ export type BoardOps = {
     serialNumber: string | undefined,
     code: string
   ) => Promise<{ board: BoardRef; output: string }>
+  /** Reads a board's output after sequence number `after`, waiting up to `waitMs` for some. */
+  logs: (
+    serialNumber: string | undefined,
+    after: number,
+    waitMs: number,
+    limit: number
+  ) => Promise<LogPage>
+  /** Types text into a board's console. */
+  write: (serialNumber: string | undefined, data: string) => Promise<BoardRef>
+  /** Releases every port the operations hold open. */
+  close: () => Promise<void>
 }
 
 /** What the board operations reach for. */
@@ -31,6 +43,10 @@ export type BoardDeps = {
   appear_timeout_ms: number
   poll_ms: number
   sleep: (ms: number) => Promise<void>
+  /** How long one log read waits for bytes. */
+  read_wait_ms: number
+  /** How many output chunks each board's buffer keeps. */
+  max_chunks: number
 }
 
 type Running = Extract<Board, { state: "micropython" }>
@@ -128,19 +144,26 @@ export function boardOps(deps: BoardDeps): BoardOps {
       await port.close()
     }
   }
+  const taps = new Taps({ ...deps, pick: pickRunning })
   return {
     list: deps.list,
-    flash: deps.flash,
-    reset: async (serialNumber) => {
-      const { board } = await withBoard(serialNumber, async (port) => resetBoard(port, deps.repl))
-      return ref(await backRunning(deps, board))
-    },
-    run: async (serialNumber, code) => {
-      const { board, result } = await withBoard(serialNumber, async (port) =>
-        runCode(port, code, deps.repl)
-      )
-      return { board: ref(board), output: result }
-    }
+    flash: async (serialNumber) => taps.hold(async () => deps.flash(serialNumber)),
+    reset: async (serialNumber) =>
+      taps.hold(async () => {
+        const { board } = await withBoard(serialNumber, async (port) => resetBoard(port, deps.repl))
+        return ref(await backRunning(deps, board))
+      }),
+    run: async (serialNumber, code) =>
+      taps.hold(async () => {
+        const { board, result } = await withBoard(serialNumber, async (port) =>
+          runCode(port, code, deps.repl)
+        )
+        return { board: ref(board), output: result }
+      }),
+    logs: async (serialNumber, after, waitMs, limit) =>
+      taps.logs(serialNumber, after, waitMs, limit),
+    write: async (serialNumber, data) => taps.write(serialNumber, data),
+    close: async () => taps.close()
   }
 }
 
@@ -154,6 +177,8 @@ export function defaultBoardOps(): BoardOps {
     repl: defaultRawReplConfig,
     appear_timeout_ms: 30000,
     poll_ms: 250,
-    sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    read_wait_ms: 100,
+    max_chunks: 5000
   })
 }

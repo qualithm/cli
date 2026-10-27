@@ -82,7 +82,16 @@ async function waitFor<T>(
   }
 }
 
-function pick(boards: Board[], serialNumber: string | undefined): Board {
+/**
+ * Picks the board a flash acts on: the running one with `serialNumber`, or the only board,
+ * running or in BOOTSEL.
+ *
+ * @param boards - the boards plugged in
+ * @param serialNumber - which board, when more than one is plugged in
+ * @returns the board
+ * @throws {CliError} when no board matches, or several are plugged in and none is named
+ */
+export function pickBoard(boards: Board[], serialNumber: string | undefined): Board {
   if (serialNumber !== undefined) {
     const wanted = serialNumber.toLowerCase()
     const board = boards.find(
@@ -153,7 +162,7 @@ export async function flashMicroPython(
 ): Promise<FlashResult> {
   // Fetch first, so a failed download never leaves a board waiting in BOOTSEL.
   const bytes = await loadFirmware(firmware, config.firmware)
-  const board = pick(await config.list(), serialNumber)
+  const board = pickBoard(await config.list(), serialNumber)
   let drive: string
   let serial: string | undefined
   if (board.state === "micropython") {

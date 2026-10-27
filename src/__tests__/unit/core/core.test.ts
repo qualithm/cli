@@ -82,6 +82,24 @@ describe("Core", () => {
     expect(ops.calls).toEqual(["flash:start:abc", "flash:end", "reset:-", "run:abc:print(42)"])
   })
 
+  it("reads logs and types without waiting behind a board verb", async () => {
+    const ops = fakeOps()
+    ops.flash_ms = 50
+    const c = core(ops)
+    const flashing = c.handle(line({ verb: "flash" }))
+    const logs = await c.handle(line({ verb: "logs", after: 3, wait_ms: 10, limit: 5 }))
+    const typed = await c.handle(line({ verb: "write", serialNumber: "abc", data: "1\r" }))
+    expect(logs).toMatchObject({ ok: true, data: { next: 4 } })
+    expect(typed).toMatchObject({ ok: true, data: { port: "/dev/cu.pico" } })
+    await flashing
+    expect(ops.calls.at(-1)).toBe("flash:end")
+    expect(ops.calls).toEqual(
+      expect.arrayContaining(["flash:start:-", "logs:-:3:10:5", "write:abc:1\r"]) as unknown
+    )
+    await c.handle(line({ verb: "logs" }))
+    expect(ops.calls.at(-1)).toBe("logs:-:0:0:1000")
+  })
+
   it("keeps a verb's error code", async () => {
     const ops = fakeOps()
     ops.fail = NOT_FOUND
