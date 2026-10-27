@@ -5,7 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { authorityCommands } from "./commands/authorities.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
 import { credentialCommands } from "./commands/credentials.ts"
+import { deviceCommands } from "./commands/devices.ts"
 import { enrollmentCommands } from "./commands/enrollments.ts"
+import { spaceCommands } from "./commands/spaces.ts"
 import { tokenCommands } from "./commands/tokens.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
 import { buildMcpServer, callTool, type SessionFactory } from "./mcp.ts"
@@ -28,14 +30,18 @@ export type CliIo = {
 export const COMMANDS: readonly Command[] = [
   ...authorityCommands,
   ...credentialCommands,
+  ...deviceCommands,
   ...enrollmentCommands,
+  ...spaceCommands,
   ...tokenCommands
 ]
 
 const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
   authorities: "authority",
   credentials: "credential",
+  devices: "device",
   enrollments: "enrollment",
+  spaces: "space",
   tokens: "token",
   "api-token": "token"
 }
@@ -65,12 +71,15 @@ Flags, accepted by every verb before or after its arguments:
 Resources and verbs:
   authority  list | create | revoke <id>
   credential list | mint | cert | rotate | revoke
+  device     list | get <id> | create | update <id> | delete <id>
   enrollment list | create | revoke <id>
+  space      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
   version                               print the CLI version
 
 Examples:
   qualithm enrollment create --space spc_123 --label lab-floor-2
+  qualithm device list --json
   qualithm credential mint --device dev_123 --json
   qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
