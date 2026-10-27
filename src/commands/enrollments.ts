@@ -1,0 +1,71 @@
+import type { EnrollmentCode, EnrollmentPage } from "@qualithm/platform"
+
+import { CliError } from "../envelope.ts"
+import { dash, table, when } from "../table.ts"
+import { createEnrollment, listEnrollments, revokeEnrollment } from "../tools/enrollments.ts"
+import {
+  type Command,
+  intOption,
+  type ParsedArgs,
+  requirePositional,
+  stringOption
+} from "./command.ts"
+
+/** `qualithm enrollment …`: list, create and revoke one-time device claim codes. */
+export const enrollmentCommands: readonly Command[] = [
+  {
+    path: ["enrollment", "list"],
+    aliases: ["ls"],
+    tool: listEnrollments,
+    options: { page: { type: "string" }, limit: { type: "string" } },
+    toInput: ({ values }) => ({
+      page: intOption(values, "page"),
+      limit: intOption(values, "limit")
+    }),
+    human: (data: unknown): string => {
+      const page = data as EnrollmentPage
+      return table([
+        ["ID", "SPACE", "LABEL", "STATUS", "EXPIRES"],
+        ...page.items.map((e) => [e.id, e.spaceId, dash(e.label), e.status, when(e.expiresAt)])
+      ])
+    }
+  },
+  {
+    path: ["enrollment", "create"],
+    aliases: ["new"],
+    tool: createEnrollment,
+    options: {
+      space: { type: "string" },
+      label: { type: "string" },
+      "expires-minutes": { type: "string" }
+    },
+    toInput: ({ values }: ParsedArgs): Record<string, unknown> => {
+      const spaceId = stringOption(values, "space")
+      if (spaceId === undefined) {
+        throw new CliError("--space is required")
+      }
+      return {
+        spaceId,
+        label: stringOption(values, "label"),
+        expiresInMinutes: intOption(values, "expires-minutes")
+      }
+    },
+    human: (data: unknown): string => {
+      const { enrollment, code } = data as EnrollmentCode
+      return (
+        `enrollment ${enrollment.id} created for space ${enrollment.spaceId}\n` +
+        `claim code (shown once): ${code}\n`
+      )
+    }
+  },
+  {
+    path: ["enrollment", "revoke"],
+    aliases: ["delete", "rm"],
+    tool: revokeEnrollment,
+    options: {},
+    toInput: ({ positionals }) => ({
+      enrollmentId: requirePositional(positionals, 0, "enrollment id")
+    }),
+    human: (_data, input) => `enrollment ${String(input.enrollmentId)} revoked\n`
+  }
+]

@@ -2,7 +2,9 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util"
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
+import { authorityCommands } from "./commands/authorities.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
+import { enrollmentCommands } from "./commands/enrollments.ts"
 import { tokenCommands } from "./commands/tokens.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
 import { buildMcpServer, callTool, type SessionFactory } from "./mcp.ts"
@@ -22,9 +24,15 @@ export type CliIo = {
 }
 
 /** Every command, in the order help lists them. */
-export const COMMANDS: readonly Command[] = [...tokenCommands]
+export const COMMANDS: readonly Command[] = [
+  ...authorityCommands,
+  ...enrollmentCommands,
+  ...tokenCommands
+]
 
 const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
+  authorities: "authority",
+  enrollments: "enrollment",
   tokens: "token",
   "api-token": "token"
 }
@@ -52,8 +60,14 @@ Flags, accepted by every verb before or after its arguments:
   --dry-run        report the planned change without applying it
 
 Resources and verbs:
+  authority  list | create | revoke <id>
+  enrollment list | create | revoke <id>
   token      list | revoke <id>
   version                               print the CLI version
+
+Examples:
+  qualithm enrollment create --space spc_123 --label lab-floor-2
+  qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
 
 Exit codes:
   0 ok (incl. dry-run)  1 error  2 usage  3 auth  4 not-found  5 conflict
