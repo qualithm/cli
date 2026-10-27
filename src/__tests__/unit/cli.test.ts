@@ -2,33 +2,10 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-import { type CliIo, run, USAGE } from "../../cli.ts"
+import { run, USAGE } from "../../cli.ts"
 import { dash, table, when } from "../../table.ts"
 import { VERSION } from "../../version.ts"
-import { fakePlatform } from "./fake-platform.ts"
-
-type Captured = { io: CliIo; out: () => string; err: () => string }
-
-function capture(extra: Partial<CliIo> = {}): Captured {
-  let out = ""
-  let err = ""
-  const { fetch } = fakePlatform()
-  return {
-    io: {
-      stdout: (text) => {
-        out += text
-      },
-      stderr: (text) => {
-        err += text
-      },
-      env: { QUALITHM_API_TOKEN: "qmt_x" },
-      fetch,
-      ...extra
-    },
-    out: () => out,
-    err: () => err
-  }
-}
+import { capture, fakePlatform } from "./fake-platform.ts"
 
 describe("top level", () => {
   it("prints the version, matching package.json", async () => {

@@ -7,6 +7,12 @@ export const dryRunInput = {
   dryRun: z.boolean().optional().describe("plan the mutation without applying it")
 }
 
+/** The paging input every list tool takes. */
+export const pageInput = {
+  page: z.number().int().positive().optional().describe("1-based page number"),
+  limit: z.number().int().min(1).max(100).optional().describe("items per page, at most 100")
+}
+
 /**
  * One platform operation, shared by the MCP tool and the CLI command that expose it, so the two
  * surfaces never diverge.
