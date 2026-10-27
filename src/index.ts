@@ -6,6 +6,13 @@
 
 export type { CliIo } from "./cli.ts"
 export { COMMANDS, run, USAGE } from "./cli.ts"
+export type {
+  Command,
+  OptionSpec,
+  ParsedArgs,
+  RefusedCommand,
+  ToolCommand
+} from "./commands/command.ts"
 export type { ErrorCode, PlannedAction, Result } from "./envelope.ts"
 export {
   CliError,
