@@ -62,6 +62,18 @@ export function intOption(values: ParsedArgs["values"], name: string): number | 
 }
 
 /**
+ * Reads an optional string flag.
+ *
+ * @param values - the parsed flags
+ * @param name - the flag
+ * @returns the value, or `undefined` when the flag is absent or empty
+ */
+export function stringOption(values: ParsedArgs["values"], name: string): string | undefined {
+  const raw = values[name]
+  return typeof raw === "string" && raw !== "" ? raw : undefined
+}
+
+/**
  * Reads a required positional argument.
  *
  * @param positionals - the positionals after the verb
