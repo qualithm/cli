@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { Board } from "../../../board/pico.ts"
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
+import { PROBE } from "../../../board/sync.ts"
 import { boardOps, pickRunning } from "../../../core/boards.ts"
 import { CliError } from "../../../envelope.ts"
 import { FakeBoard } from "../board/fake-board.ts"
@@ -187,5 +188,19 @@ describe("boardOps", () => {
       flashed: "1.29.0"
     })
     expect(board.written).toEqual([])
+  })
+
+  it("probes a blank board without opening it, and a running one over the REPL", async () => {
+    const blank = await ops(new FakeBoard(), [[waiting]]).probe(undefined)
+    expect(blank).toEqual({ blank: true, credential: false, claimCode: false })
+    const board = new FakeBoard({
+      [PROBE]: { stdout: '{"credential": false, "claimCode": true, "wifiNetwork": "Home"}\r\n' }
+    })
+    expect(await ops(board).probe("abc")).toEqual({
+      blank: false,
+      credential: false,
+      claimCode: true,
+      wifiNetwork: "Home"
+    })
   })
 })

@@ -10,15 +10,22 @@ import type { Tool } from "./tools/tool.ts"
 /** Builds the platform session one call runs on. */
 export type SessionFactory = (dryRun: boolean) => Session
 
-/** What a local tool gets in place of a session; touching it is a bug in the tool. */
-const NO_SESSION = new Proxy(
-  {},
-  {
-    get: () => {
-      throw new CliError("a local tool reached for the platform session", "error")
+/**
+ * A session built on first use, for a local tool: a deploy reaches the platform only to claim a
+ * new board, so the others work without a token.
+ */
+function lazySession(newSession: SessionFactory, dryRun: boolean): Session {
+  let session: Session | undefined
+  return new Proxy({} as Session, {
+    get: (_target, property) => {
+      session ??= newSession(dryRun)
+      const value: unknown = Reflect.get(session, property, session)
+      return typeof value === "function"
+        ? (value as (...args: unknown[]) => unknown).bind(session)
+        : value
     }
-  }
-) as Session
+  })
+}
 
 /**
  * Runs one tool: validates its input, opens a session (in dry-run mode when asked) unless the
@@ -44,7 +51,7 @@ export async function callTool(
   const input = parsed.data as Record<string, unknown>
   const dryRun = tool.mutating && input.dryRun === true
   try {
-    const session = tool.local === true ? NO_SESSION : newSession(dryRun)
+    const session = tool.local === true ? lazySession(newSession, dryRun) : newSession(dryRun)
     const data = await tool.run(session, input)
     // A tool that plans several changes reports them as data; mark the envelope a dry run too.
     return dryRun ? { ...success(data), dryRun: true } : success(data)

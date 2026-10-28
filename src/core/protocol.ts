@@ -33,8 +33,16 @@ const requestSchema = z.discriminatedUnion("verb", [
     verb: z.literal("deploy"),
     serialNumber,
     files: z.array(z.object({ path: z.string().regex(/^\/./), data: z.string() })).min(1),
-    dryRun: z.boolean().optional()
-  })
+    dryRun: z.boolean().optional(),
+    setup: z
+      .object({
+        provisioningUrl: z.string().startsWith("https://"),
+        claimCode: z.string().min(1),
+        wifi: z.object({ ssid: z.string().min(1), passphrase: z.string() }).optional()
+      })
+      .optional()
+  }),
+  z.object({ api: z.number().int(), verb: z.literal("probe"), serialNumber })
 ])
 
 /** One request line a client sends the core. */

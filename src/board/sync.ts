@@ -30,6 +30,40 @@ export const RESERVED = [
   "/qualithm-setup.json"
 ] as const
 
+/** What a board already holds for joining the platform. */
+export type SetupState = {
+  /** The SDK has stored a credential: the board is claimed. */
+  credential: boolean
+  /** A setup file still holds an unspent claim code. */
+  claimCode: boolean
+  /** The network a setup file names, so a redeploy can keep it. */
+  wifiNetwork?: string
+}
+
+/** What deploy writes to `/qualithm-setup.json` for the SDK's `pico.start()`. */
+export type Setup = {
+  provisioningUrl: string
+  claimCode: string
+  /** Omitted to keep the network the board's setup file already names. */
+  wifi?: { ssid: string; passphrase: string }
+}
+
+const SETUP_PATH = "/qualithm-setup.json"
+
+/** The board-side check for a credential and a setup file; prints one JSON line. */
+export const PROBE = `import os, json
+try:
+    os.stat("/qualithm-credential.json")
+    _c = True
+except OSError:
+    _c = False
+try:
+    _s = json.loads(open("/qualithm-setup.json").read())
+except (OSError, ValueError):
+    _s = {}
+_w = _s.get("wifi") if isinstance(_s, dict) else None
+print(json.dumps({"credential": _c, "claimCode": bool(isinstance(_s, dict) and _s.get("claimCode")), "wifiNetwork": _w.get("ssid") if isinstance(_w, dict) else None}))`
+
 /** Where a deploy records the files it wrote, so the next one can remove the ones gone since. */
 export const MANIFEST = "/.qualithm-deploy.json"
 
@@ -209,6 +243,50 @@ export async function syncWith(
 }
 
 /**
+ * Reads what the board holds for joining the platform, inside a raw REPL session.
+ *
+ * @param repl - the session
+ * @returns the state
+ * @throws {CliError} when the board raises
+ */
+export async function probeSetup(repl: Repl): Promise<SetupState> {
+  const out = await run(repl, PROBE)
+  const parsed = JSON.parse(out.trim()) as {
+    credential: boolean
+    claimCode: boolean
+    wifiNetwork: string | null
+  }
+  return {
+    credential: parsed.credential,
+    claimCode: parsed.claimCode,
+    ...(typeof parsed.wifiNetwork === "string" ? { wifiNetwork: parsed.wifiNetwork } : {})
+  }
+}
+
+/**
+ * Writes the setup file, replacing it atomically. Without `wifi`, keeps the network the
+ * existing file names.
+ *
+ * @param repl - the session
+ * @param setup - what to write
+ * @throws {CliError} when no Wi-Fi is given and the board's setup file has none
+ */
+export async function writeSetup(repl: Repl, setup: Setup): Promise<void> {
+  // The JSON is passed as a string, so the passphrase is never Python source.
+  await run(
+    repl,
+    `import json, os
+_n = json.loads(${py(JSON.stringify(setup))})
+if "wifi" not in _n:
+    _n["wifi"] = json.loads(open(${py(SETUP_PATH)}).read())["wifi"]
+_f = open(${py(`${SETUP_PATH}.tmp`)}, "w")
+_f.write(json.dumps(_n))
+_f.close()
+os.rename(${py(`${SETUP_PATH}.tmp`)}, ${py(SETUP_PATH)})`
+  )
+}
+
+/**
  * Makes the board's files match a project: writes the files that differ, removes those a
  * previous deploy wrote that are gone, then soft-resets so `main.py` runs. Never touches the
  * SDK's reserved files or files a deploy didn't write.
@@ -217,6 +295,7 @@ export async function syncWith(
  * @param files - the project's files
  * @param dryRun - report what would change without changing it
  * @param config - raw REPL timings
+ * @param setup - a setup file to write before the reset, for a board not yet claimed
  * @returns what changed
  * @throws {CliError} when the board refuses a write or its filesystem is full
  */
@@ -224,7 +303,8 @@ export async function syncProject(
   port: SerialPort,
   files: ProjectFile[],
   dryRun = false,
-  config: RawReplConfig = defaultRawReplConfig
+  config: RawReplConfig = defaultRawReplConfig,
+  setup?: Setup
 ): Promise<SyncResult> {
   const repl = new RawRepl(port, config)
   await repl.enter()
@@ -234,10 +314,34 @@ export async function syncProject(
     if (dryRun) {
       return result
     }
+    if (setup !== undefined) {
+      await writeSetup(repl, setup)
+    }
   } finally {
     await repl.exit()
   }
   // Ctrl-D at the normal prompt soft-resets the board, which runs boot.py and main.py.
   await port.write(new Uint8Array([0x04]))
   return result
+}
+
+/**
+ * Reads what a running board holds for joining the platform.
+ *
+ * @param port - the board's open serial port
+ * @param config - raw REPL timings
+ * @returns the state
+ * @throws {CliError} when the board doesn't answer or raises
+ */
+export async function probeBoard(
+  port: SerialPort,
+  config: RawReplConfig = defaultRawReplConfig
+): Promise<SetupState> {
+  const repl = new RawRepl(port, config)
+  await repl.enter()
+  try {
+    return await probeSetup(repl)
+  } finally {
+    await repl.exit()
+  }
 }

@@ -8,11 +8,14 @@ import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
 import {
   collectProject,
   MANIFEST,
+  PROBE,
+  probeSetup,
   type ProjectFile,
   type Repl,
   sha256,
   syncProject,
-  syncWith
+  syncWith,
+  writeSetup
 } from "../../../board/sync.ts"
 import { FakeBoard } from "./fake-board.ts"
 
@@ -37,6 +40,39 @@ class FakeFs implements Repl {
   }
 
   #run(code: string): string {
+    if (code === PROBE) {
+      let setup: unknown
+      try {
+        setup = JSON.parse(Buffer.from(this.files.get("/qualithm-setup.json") ?? []).toString())
+      } catch {
+        setup = {}
+      }
+      const s = (typeof setup === "object" && setup !== null ? setup : {}) as {
+        claimCode?: string
+        wifi?: { ssid?: string }
+      }
+      return `${JSON.stringify({
+        credential: this.files.has("/qualithm-credential.json"),
+        claimCode: Boolean(s.claimCode),
+        wifiNetwork: s.wifi?.ssid ?? null
+      })}\r\n`
+    }
+    const setupWrite = /^import json, os\n_n = json\.loads\((".*")\)\n/.exec(code)
+    if (setupWrite !== null) {
+      const next = JSON.parse(JSON.parse(setupWrite[1] ?? '""') as string) as Record<
+        string,
+        unknown
+      >
+      if (!("wifi" in next)) {
+        const old = this.files.get("/qualithm-setup.json")
+        if (old === undefined) {
+          throw new Error("no setup to keep")
+        }
+        next.wifi = (JSON.parse(Buffer.from(old).toString()) as { wifi: unknown }).wifi
+      }
+      this.files.set("/qualithm-setup.json", Buffer.from(JSON.stringify(next)))
+      return ""
+    }
     if (code.startsWith("import os, hashlib")) {
       return ""
     }
@@ -199,6 +235,45 @@ describe("syncWith", () => {
   })
 })
 
+describe("setup", () => {
+  const setup = {
+    provisioningUrl: "https://api.example.com",
+    claimCode: "qmc_a.b",
+    wifi: { ssid: 'Home "5G"', passphrase: "p\\w'd" }
+  }
+
+  it("finds nothing on a board deploy hasn't set up", async () => {
+    expect(await probeSetup(new FakeFs())).toEqual({ credential: false, claimCode: false })
+  })
+
+  it("writes the setup file, quotes and all, and reads it back", async () => {
+    const fs = new FakeFs()
+    await writeSetup(fs, setup)
+    expect(JSON.parse(Buffer.from(fs.files.get("/qualithm-setup.json") ?? []).toString())).toEqual(
+      setup
+    )
+    expect(await probeSetup(fs)).toEqual({
+      credential: false,
+      claimCode: true,
+      wifiNetwork: 'Home "5G"'
+    })
+  })
+
+  it("keeps the board's Wi-Fi when the new setup has none", async () => {
+    const fs = new FakeFs()
+    await writeSetup(fs, setup)
+    await writeSetup(fs, { provisioningUrl: setup.provisioningUrl, claimCode: "qmc_c.d" })
+    const written = JSON.parse(Buffer.from(fs.files.get("/qualithm-setup.json") ?? []).toString())
+    expect(written).toEqual({ ...setup, claimCode: "qmc_c.d" })
+  })
+
+  it("sees a stored credential", async () => {
+    const fs = new FakeFs()
+    fs.files.set("/qualithm-credential.json", Buffer.from("{}"))
+    expect((await probeSetup(fs)).credential).toBe(true)
+  })
+})
+
 describe("syncProject", () => {
   const fast = { ...defaultRawReplConfig, enter_timeout_ms: 5000, exec_timeout_ms: 5000 }
 
@@ -212,5 +287,21 @@ describe("syncProject", () => {
     const real = await syncProject(board, files, false, fast)
     expect(real.written).toEqual(["/main.py"])
     expect(board.written.at(-1)).toBe("\x04")
+    const setup = { provisioningUrl: "https://a.example", claimCode: "qmc_a.b" }
+    await syncProject(board, files, false, fast, setup)
+    expect(board.ran.some((code) => code.includes("qmc_a.b"))).toBe(true)
+  })
+})
+
+describe("probeBoard", () => {
+  it("reads the setup state over the raw REPL", async () => {
+    const { probeBoard } = await import("../../../board/sync.ts")
+    const board = new FakeBoard({
+      [PROBE]: { stdout: '{"credential": true, "claimCode": false, "wifiNetwork": null}\r\n' }
+    })
+    expect(await probeBoard(board, { ...defaultRawReplConfig, enter_timeout_ms: 5000 })).toEqual({
+      credential: true,
+      claimCode: false
+    })
   })
 })
