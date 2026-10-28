@@ -7,10 +7,11 @@ import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "../envelope.ts"
-import { callTool } from "../mcp.ts"
+import { callTool, type SessionFactory } from "../mcp.ts"
 import { dash, table } from "../table.ts"
 import { boardTools, type ConsoleReply, tail } from "../tools/boards.ts"
-import type { Tool } from "../tools/tool.ts"
+import { type Ask, type Provisioned, terminalWifi, type WifiLookup } from "../tools/provision.ts"
+import { terminalAsk } from "./ask.ts"
 import { intOption, stringOption } from "./command.ts"
 
 /** Where `qualithm board` writes and what it talks to; tests pass their own. */
@@ -23,7 +24,19 @@ export type BoardIo = {
   stdin?: AsyncIterable<Uint8Array | string>
   /** Ends `board logs --follow` and `board console`; Ctrl-C by default. */
   signal?: AbortSignal
+  /**
+   * Builds the platform session a deploy claims a new board with, from the parsed flags.
+   * Without it, a deploy that needs the platform fails.
+   */
+  newSession?: (values: PlatformFlags) => SessionFactory
+  /** Asks the person for Wi-Fi details; the terminal when there is one, else nobody. */
+  ask?: Ask
+  /** Where Wi-Fi networks and passphrases come from; the OS by default. */
+  wifiLookup?: WifiLookup
 }
+
+/** The platform flags a deploy takes. */
+export type PlatformFlags = { url?: string; token?: string; team?: string }
 
 export const BOARD_USAGE = `Usage:
   qualithm deploy [dir] [--serial S]        put a MicroPython project folder on a board and restart it
@@ -51,6 +64,11 @@ const OPTIONS = {
   after: { type: "string" },
   input: { type: "string" },
   wait: { type: "string" },
+  space: { type: "string" },
+  wifi: { type: "string" },
+  url: { type: "string" },
+  token: { type: "string" },
+  team: { type: "string" },
   help: { type: "boolean", short: "h" }
 } as const
 
@@ -62,6 +80,11 @@ type Values = {
   after?: string
   input?: string
   wait?: string
+  space?: string
+  wifi?: string
+  url?: string
+  token?: string
+  team?: string
   help?: boolean
 }
 
@@ -83,9 +106,15 @@ function boardsTable(boards: Board[]): string {
   ])
 }
 
-function deployed(result: DeployResult, dryRun: boolean): string {
+function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: boolean): string {
   const lines: string[] = []
   const would = dryRun ? "would " : ""
+  if (result.provisioned !== undefined) {
+    const { spaceId, wifiNetwork } = result.provisioned
+    lines.push(
+      `${would}set the board to claim itself into space ${spaceId} on Wi-Fi ${wifiNetwork}`
+    )
+  }
   if (result.flashed !== undefined) {
     lines.push(`${would}flash MicroPython ${result.flashed} first`)
   }
@@ -147,6 +176,14 @@ function inputFor(
   const input: Record<string, unknown> = serial === undefined ? {} : { serialNumber: serial }
   if (verb === "deploy") {
     input.dir = positionals[1] ?? "."
+    const space = stringOption(values, "space")
+    const wifi = stringOption(values, "wifi")
+    if (space !== undefined) {
+      input.spaceId = space
+    }
+    if (wifi !== undefined) {
+      input.wifiNetwork = wifi
+    }
   }
   if (verb === "flash" || verb === "reset" || verb === "console" || verb === "deploy") {
     input.dryRun = values["dry-run"] === true
@@ -264,6 +301,14 @@ async function interactive(
   return EXIT_CODES.ok
 }
 
+/** The terminal to ask on, when the CLI has one. */
+function defaultAsk(io: BoardIo): Ask | undefined {
+  if (io.stdin !== undefined || !process.stdin.isTTY) {
+    return undefined
+  }
+  return terminalAsk({ input: process.stdin, output: io.stderr })
+}
+
 function terminalInput(): AsyncIterable<Uint8Array | string> {
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true)
@@ -294,6 +339,37 @@ async function stream(
     throw new CliError("an interactive console has no --json form: pass --input", "usage")
   }
   return interactive(io, client, serial, io.stdin ?? terminalInput(), io.signal ?? defaultSignal())
+}
+
+/** Runs a verb's board tool, with a terminal to ask on and a session for claiming. */
+async function runTool(
+  name: string,
+  io: BoardIo,
+  client: CoreClient,
+  values: Values,
+  input: Record<string, unknown>
+): Promise<Result> {
+  const ask = io.ask ?? defaultAsk(io)
+  const lookup = io.wifiLookup ?? {}
+  const tools = boardTools(client, {
+    lookup,
+    ...(ask === undefined ? {} : { wifi: terminalWifi(ask, lookup) })
+  })
+  const tool = tools.find((t) => t.name === name)
+  if (tool === undefined) {
+    return failure(new CliError(`no board tool ${name}`, "error"))
+  }
+  const flags: PlatformFlags = {
+    ...(values.url === undefined ? {} : { url: values.url }),
+    ...(values.token === undefined ? {} : { token: values.token }),
+    ...(values.team === undefined ? {} : { team: values.team })
+  }
+  const newSession: SessionFactory =
+    io.newSession?.(flags) ??
+    (() => {
+      throw new CliError("this command can't reach the platform here", "error")
+    })
+  return callTool(tool, newSession, input)
 }
 
 /**
@@ -345,17 +421,6 @@ export async function runBoard(args: readonly string[], io: BoardIo): Promise<nu
   } catch (error) {
     return print(io, json, failure(error), () => "")
   }
-  const tool = boardTools(client).find((t): t is Tool => t.name === name)
-  if (tool === undefined) {
-    return EXIT_CODES.error
-  }
-  // Board tools are local, so they never build the session this factory would.
-  const result = await callTool(
-    tool,
-    () => {
-      throw new CliError("board commands need no platform session", "error")
-    },
-    input
-  )
+  const result = await runTool(name, io, client, values, input)
   return print(io, json, result, () => human(verb, result.data, result.dryRun === true))
 }

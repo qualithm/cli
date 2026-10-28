@@ -208,14 +208,25 @@ async function runMcp(args: string[], io: CliIo): Promise<number> {
   return EXIT_CODES.ok
 }
 
+function boardIo(io: CliIo): BoardIo {
+  return {
+    newSession: (flags) => {
+      const config = sessionConfig(io, flags, `qualithm/${VERSION}`)
+      return (dryRun) => new Session({ ...config, dryRun })
+    },
+    ...io.board,
+    stdout: io.stdout,
+    stderr: io.stderr
+  }
+}
+
 /** Commands that parse their own arguments. */
 const SUBPROGRAMS: Readonly<
   Record<string, ((args: string[], io: CliIo) => Promise<number>) | undefined>
 > = {
   mcp: runMcp,
-  board: async (args, io) => runBoard(args, { ...io.board, stdout: io.stdout, stderr: io.stderr }),
-  deploy: async (args, io) =>
-    runBoard(["deploy", ...args], { ...io.board, stdout: io.stdout, stderr: io.stderr }),
+  board: async (args, io) => runBoard(args, boardIo(io)),
+  deploy: async (args, io) => runBoard(["deploy", ...args], boardIo(io)),
   core: async (args, io) => runCore(args, { ...io.core, stdout: io.stdout, stderr: io.stderr })
 }
 
