@@ -194,17 +194,20 @@ export const defaultEnsureConfig: EnsureConfig = {
  * A client of the user's core over its socket. The first request starts the core when none is
  * running and checks its version.
  *
- * @param path - the socket path or Windows pipe name
+ * @param socket - the socket path or Windows pipe name; the user's own, found on first use, by
+ *   default
  * @param ensure - how to start and wait for a core
  * @returns the client
  */
 export function socketClient(
-  path: string = corePath(),
+  socket?: string,
   ensure: EnsureConfig = defaultEnsureConfig
 ): CoreClient {
   let ready: Promise<Hello> | undefined
   return {
     send: async (request) => {
+      // Found here, not at construction, so importing the package never reads the home folder.
+      const path = socket ?? corePath()
       ready ??= ensureCore(path, ensure)
       try {
         await ready

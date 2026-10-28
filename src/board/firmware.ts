@@ -101,7 +101,11 @@ export function cacheDir(
 }
 
 export const defaultFirmwareConfig: FirmwareConfig = {
-  cache_dir: cacheDir(),
+  // A getter, so importing the package never reads the home folder; config fields are snake_case.
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  get cache_dir() {
+    return cacheDir()
+  },
   fetch: async (url) => fetch(url)
 }
 

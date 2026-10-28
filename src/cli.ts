@@ -28,9 +28,9 @@ export type CliIo = {
   fetch?: FetchAPI
   /** Serves `qualithm mcp`; defaults to stdio. */
   serveMcp?: (server: ReturnType<typeof buildMcpServer>) => Promise<void>
-  /** What `qualithm board` talks to; defaults to the user's core and terminal. */
+  /** What `qualithm board` talks to; defaults to the user's core and terminal. @internal */
   board?: Omit<BoardIo, "stdout" | "stderr">
-  /** What `qualithm core run` reaches for; defaults to the real machine. */
+  /** What `qualithm core run` reaches for; defaults to the real machine. @internal */
   core?: Omit<CoreIo, "stdout" | "stderr">
 }
 
