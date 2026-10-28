@@ -83,10 +83,13 @@ export class Core {
           path: f.path,
           bytes: new Uint8Array(Buffer.from(f.data, "base64"))
         }))
+        const { setup } = request
         return this.#serial(async () =>
-          ops.deploy(request.serialNumber, files, request.dryRun === true)
+          ops.deploy(request.serialNumber, files, request.dryRun === true, setup)
         )
       }
+      case "probe":
+        return this.#serial(async () => ops.probe(request.serialNumber))
       // Reading and typing skip the queue: a long read must not hold up a flash.
       case "logs":
         return ops.logs(

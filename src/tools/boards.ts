@@ -5,11 +5,21 @@ import { z } from "zod"
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import { pickBoard } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
-import { collectProject } from "../board/sync.ts"
-import { pickRunning } from "../core/boards.ts"
+import { collectProject, type Setup } from "../board/sync.ts"
+import { type DeployResult, pickRunning, type ProbeResult } from "../core/boards.ts"
 import type { CoreClient } from "../core/client.ts"
 import { MAX_LIMIT, MAX_WAIT_MS } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
+import { CliError } from "../envelope.ts"
+import {
+  keychainWifi,
+  makeSetup,
+  pickNetwork,
+  pickSpace,
+  type Provisioned,
+  type WifiLookup,
+  type WifiResolver
+} from "./provision.ts"
 import { defineTool, dryRunInput, type Tool } from "./tool.ts"
 
 const serialNumber = {
@@ -18,6 +28,26 @@ const serialNumber = {
     .min(1)
     .optional()
     .describe("the board's USB serial number, needed when more than one board is plugged in")
+}
+
+/** How the board tools find what a new board needs. */
+export type BoardToolOptions = {
+  /** Finds the Wi-Fi details; the keychain alone by default, so an agent never sees them. */
+  wifi?: WifiResolver
+  /** What the default resolver and a dry run reach for. */
+  lookup?: WifiLookup
+}
+
+/** Says why a deploy reached for the platform, keeping a CLI error's own code. */
+function claimNeedsPlatform(error: unknown): unknown {
+  if (error instanceof CliError) {
+    return error
+  }
+  const reason = error instanceof Error ? error.message : String(error)
+  return new CliError(
+    `the board isn't claimed yet, and claiming it needs the platform: ${reason}`,
+    "auth"
+  )
 }
 
 /** What a console exchange returns. */
@@ -100,9 +130,12 @@ export async function tail(client: CoreClient, serial: string | undefined): Prom
  * The board tools over `client`: the same calls the `qualithm board` commands make.
  *
  * @param client - the device core
+ * @param options - how a deploy finds Wi-Fi details; the keychain alone by default
  * @returns the tools
  */
-export function boardTools(client: CoreClient): Tool[] {
+export function boardTools(client: CoreClient, options: BoardToolOptions = {}): Tool[] {
+  const resolveWifi = options.wifi ?? keychainWifi(options.lookup)
+
   return [
     defineTool({
       name: "list_boards",
@@ -157,19 +190,53 @@ export function boardTools(client: CoreClient): Tool[] {
       input: {
         dir: z.string().min(1).describe("the project folder on this computer"),
         ...serialNumber,
+        spaceId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("the space a new board joins; needed only when the team has several"),
+        wifiNetwork: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "the Wi-Fi network a new board joins; defaults to this computer's likeliest. The passphrase is read from this computer's keychain, never passed here"
+          ),
         ...dryRunInput
       },
-      run: async (_session, input) => {
+      run: async (session, input) => {
         const files = await collectProject(resolve(input.dir))
-        return client.send({
+        const target = input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber }
+        const dryRun = input.dryRun === true
+        const state = (await client.send({ verb: "probe", ...target })) as ProbeResult
+        let setup: Setup | undefined
+        let provisioned: Provisioned | undefined
+        if (!state.credential) {
+          // A board with no credential gets a fresh code each deploy, so an expired one never strands it.
+          const spaceId = await pickSpace(session, input.spaceId).catch((error: unknown) => {
+            throw claimNeedsPlatform(error)
+          })
+          const keep = input.wifiNetwork === undefined ? state.wifiNetwork : undefined
+          if (dryRun) {
+            const network = keep ?? (await pickNetwork(input.wifiNetwork, options.lookup))
+            provisioned = { spaceId, wifiNetwork: network }
+          } else {
+            const wifi = keep === undefined ? await resolveWifi(input.wifiNetwork) : undefined
+            setup = await makeSetup(session, spaceId, wifi)
+            provisioned = { spaceId, wifiNetwork: wifi?.ssid ?? keep ?? "" }
+          }
+        }
+        const result = (await client.send({
           verb: "deploy",
-          ...(input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber }),
+          ...target,
           files: files.map((f) => ({
             path: f.path,
             data: Buffer.from(f.bytes).toString("base64")
           })),
-          dryRun: input.dryRun === true
-        })
+          dryRun,
+          ...(setup === undefined ? {} : { setup })
+        })) as DeployResult
+        return provisioned === undefined ? result : { ...result, provisioned }
       }
     }),
     defineTool({

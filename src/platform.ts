@@ -1,4 +1,4 @@
-import { PlatformClient, TeamsApi } from "@qualithm/platform"
+import { DEFAULT_BASE_URL, PlatformClient, TeamsApi } from "@qualithm/platform"
 
 import { CliError, DryRunError } from "./envelope.ts"
 
@@ -69,6 +69,8 @@ export function sessionFetch(
 /** One authenticated connection to the platform, shared by every call a command makes. */
 export class Session {
   readonly client: PlatformClient
+  /** The API this session talks to, without a trailing slash; the SDK's provisioning URL. */
+  readonly baseUrl: string
   private team: string | undefined
 
   /**
@@ -83,6 +85,10 @@ export class Session {
       fetch: sessionFetch(base, config)
     })
     this.team = config.team === "" ? undefined : config.team
+    this.baseUrl = (config.baseUrl ?? process.env.QUALITHM_API_URL ?? DEFAULT_BASE_URL).replace(
+      /\/+$/,
+      ""
+    )
   }
 
   /**

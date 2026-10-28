@@ -1,6 +1,6 @@
 import type { FlashResult } from "../../../board/flash.ts"
 import type { Board } from "../../../board/pico.ts"
-import type { BoardOps, BoardRef } from "../../../core/boards.ts"
+import type { BoardOps, BoardRef, ProbeResult } from "../../../core/boards.ts"
 import { CliError } from "../../../envelope.ts"
 
 /** Board operations that record what they were asked and answer from fixtures. */
@@ -10,6 +10,10 @@ export type FakeOps = BoardOps & {
   fail?: Error
   /** How long `flash` takes, so tests can overlap two calls. */
   flash_ms: number
+  /** The setup each deploy carried. */
+  setups: unknown[]
+  /** What `probe` finds; a claimed board by default. */
+  state: ProbeResult
 }
 
 export const BOARD: Board = { state: "micropython", port: "/dev/cu.pico", serialNumber: "abc" }
@@ -23,7 +27,9 @@ const REF: BoardRef = { port: "/dev/cu.pico", serialNumber: "abc" }
 export function fakeOps(): FakeOps {
   const ops: FakeOps = {
     calls: [],
+    setups: [],
     flash_ms: 0,
+    state: { blank: false, credential: true, claimCode: false },
     list: async () => Promise.resolve([BOARD]),
     flash: async (serialNumber) => {
       ops.calls.push(`flash:start:${serialNumber ?? "-"}`)
@@ -64,7 +70,8 @@ export function fakeOps(): FakeOps {
       ops.calls.push(`write:${serialNumber ?? "-"}:${data}`)
       return Promise.resolve(REF)
     },
-    deploy: async (serialNumber, files, dryRun) => {
+    deploy: async (serialNumber, files, dryRun, setup) => {
+      ops.setups.push(setup)
       ops.calls.push(
         `deploy:${serialNumber ?? "-"}:${files.map((f) => f.path).join(",")}:${String(dryRun)}`
       )
@@ -77,6 +84,10 @@ export function fakeOps(): FakeOps {
         removed: [],
         unchanged: 0
       })
+    },
+    probe: async (serialNumber) => {
+      ops.calls.push(`probe:${serialNumber ?? "-"}`)
+      return Promise.resolve(ops.state)
     },
     close: async () => {
       ops.calls.push("close")

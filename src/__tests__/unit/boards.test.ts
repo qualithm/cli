@@ -12,6 +12,7 @@ import { callTool } from "../../mcp.ts"
 import { boardTools, consoleExchange } from "../../tools/boards.ts"
 import type { Tool } from "../../tools/tool.ts"
 import { fakeOps } from "./core/fake-ops.ts"
+import { fakeSession } from "./provision.test.ts"
 
 /** A client that hands requests straight to an in-process core. */
 function clientOf(ops: BoardOps): CoreClient & { sent: string[] } {
@@ -177,7 +178,7 @@ describe("deploy", () => {
     const dir = await projectDir()
     const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, { dir })
     expect(result).toMatchObject({ ok: true, data: { written: ["/main.py"] } })
-    expect(ops.calls).toEqual(["deploy:-:/main.py:false"])
+    expect(ops.calls).toEqual(["probe:-", "deploy:-:/main.py:false"])
   })
 
   it("prints what it wrote, or would write", async () => {
@@ -203,13 +204,142 @@ describe("deploy", () => {
     expect(dry.out()).toBe(
       "would flash MicroPython 1.29.0 first\nwould write  /main.py\nwould remove /old.py\ndry-run: 2 change(s), 2 file(s) already match\n"
     )
-    expect(ops.calls[0]).toBe("deploy:abc:/main.py:false")
+    expect(ops.calls[1]).toBe("deploy:abc:/main.py:false")
   })
 
   it("deploys the current folder by default and names a missing one", async () => {
     const c = capture({ client: clientOf(fakeOps()) })
     expect(await run(["board", "deploy", "/no/such/project", "--json"], c)).toBe(4)
     expect(JSON.parse(c.out())).toMatchObject({ ok: false, code: "not_found" })
+  })
+})
+
+describe("deploy provisioning", () => {
+  const wifi = { ssid: "Home", passphrase: "pw" }
+  const deployTool = (client: CoreClient, network = "Home"): Tool => {
+    const found = boardTools(client, {
+      wifi: async (named) => Promise.resolve({ ...wifi, ssid: named ?? network }),
+      lookup: { networks: async () => Promise.resolve([network]) }
+    }).find((t) => t.name === "deploy_project")
+    if (found === undefined) {
+      throw new Error("no deploy tool")
+    }
+    return found
+  }
+
+  it("claims a new board: a fresh code, Wi-Fi and the API's URL, never echoed back", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: true, credential: false, claimCode: false }
+    const created: unknown[] = []
+    const session = fakeSession([{ id: "spc_1", name: "Lab" }], created)
+    const result = await callTool(deployTool(clientOf(ops)), () => session, {
+      dir: await projectDir()
+    })
+    expect(ops.setups).toEqual([
+      { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code", wifi }
+    ])
+    expect(result).toMatchObject({
+      ok: true,
+      data: { provisioned: { spaceId: "spc_1", wifiNetwork: "Home" } }
+    })
+    expect(JSON.stringify(result)).not.toContain("pw")
+    expect(JSON.stringify(result)).not.toContain("qmc_new")
+    expect(created).toHaveLength(1)
+  })
+
+  it("keeps the Wi-Fi a board's setup file already names", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: true, wifiNetwork: "Cafe" }
+    const session = fakeSession([{ id: "spc_1", name: "Lab" }])
+    const result = await callTool(deployTool(clientOf(ops)), () => session, {
+      dir: await projectDir()
+    })
+    expect(ops.setups).toEqual([
+      { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code" }
+    ])
+    expect(result).toMatchObject({ data: { provisioned: { wifiNetwork: "Cafe" } } })
+  })
+
+  it("uses a named network and space", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false, wifiNetwork: "Cafe" }
+    const session = fakeSession([])
+    const result = await callTool(deployTool(clientOf(ops)), () => session, {
+      dir: await projectDir(),
+      spaceId: "spc_named",
+      wifiNetwork: "Other"
+    })
+    expect(result).toMatchObject({
+      data: { provisioned: { spaceId: "spc_named", wifiNetwork: "Other" } }
+    })
+  })
+
+  it("plans a claim on a dry run without creating a code or reading a passphrase", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const created: unknown[] = []
+    const session = fakeSession([{ id: "spc_1", name: "Lab" }], created)
+    const result = await callTool(deployTool(clientOf(ops)), () => session, {
+      dir: await projectDir(),
+      dryRun: true
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: true,
+      data: { provisioned: { spaceId: "spc_1", wifiNetwork: "Home" } }
+    })
+    expect(created).toEqual([])
+    expect(ops.setups).toEqual([undefined])
+  })
+
+  it("leaves a claimed board alone and needs no platform", async () => {
+    const ops = fakeOps()
+    const result = await callTool(deployTool(clientOf(ops)), noSession, { dir: await projectDir() })
+    expect(result).toMatchObject({ ok: true })
+    expect(result.data).not.toHaveProperty("provisioned")
+  })
+
+  it("reports a missing token as the deploy's error", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const result = await callTool(deployTool(clientOf(ops)), noSession, { dir: await projectDir() })
+    expect(result).toMatchObject({
+      ok: false,
+      code: "auth",
+      message: "the board isn't claimed yet, and claiming it needs the platform: no session"
+    })
+    const spaceless = await callTool(deployTool(clientOf(ops)), () => fakeSession([]), {
+      dir: await projectDir()
+    })
+    expect(spaceless).toMatchObject({ ok: false, code: "not_found" })
+  })
+
+  it("asks at the terminal through qualithm deploy, and prints what it chose", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const answers = ["typed-pass"]
+    const c = capture({
+      client: clientOf(ops),
+      newSession: () => () => fakeSession([{ id: "spc_1", name: "Lab" }]),
+      wifiLookup: {
+        networks: async () => Promise.resolve(["Home"]),
+        passphrase: async () => Promise.resolve(undefined)
+      },
+      ask: {
+        line: async (_q, fallback) => Promise.resolve(fallback),
+        secret: async () => Promise.resolve(answers.shift() ?? "")
+      }
+    })
+    const dir = await projectDir()
+    expect(await run(["deploy", dir, "--wifi", "Named", "--space", "spc_9"], c)).toBe(0)
+    expect(ops.setups).toEqual([
+      {
+        provisioningUrl: "https://api.example.com",
+        claimCode: "qmc_new.code",
+        wifi: { ssid: "Named", passphrase: "typed-pass" }
+      }
+    ])
+    expect(c.out()).toContain("set the board to claim itself into space spc_9 on Wi-Fi Named")
   })
 })
 

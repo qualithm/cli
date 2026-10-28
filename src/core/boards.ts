@@ -9,12 +9,25 @@ import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
 import type { SerialPort } from "../board/serial.ts"
-import { type ProjectFile, syncProject, type SyncResult } from "../board/sync.ts"
+import {
+  probeBoard,
+  type ProjectFile,
+  type Setup,
+  type SetupState,
+  syncProject,
+  type SyncResult
+} from "../board/sync.ts"
 import { CliError } from "../envelope.ts"
 import { type LogPage, Taps } from "./taps.ts"
 
 /** A board the core acted on. */
 export type BoardRef = { port: string; serialNumber?: string }
+
+/** What `probe` finds on a board. */
+export type ProbeResult = SetupState & {
+  /** The board is in BOOTSEL with no MicroPython yet. */
+  blank: boolean
+}
 
 /** What a deploy did to one board. */
 export type DeployResult = SyncResult & {
@@ -50,8 +63,11 @@ export type BoardOps = {
   deploy: (
     serialNumber: string | undefined,
     files: ProjectFile[],
-    dryRun: boolean
+    dryRun: boolean,
+    setup?: Setup
   ) => Promise<DeployResult>
+  /** What a board holds for joining the platform; a blank board holds nothing. */
+  probe: (serialNumber: string | undefined) => Promise<ProbeResult>
   /** Releases every port the operations hold open. */
   close: () => Promise<void>
 }
@@ -183,7 +199,18 @@ export function boardOps(deps: BoardDeps): BoardOps {
         )
         return { board: ref(board), output: result }
       }),
-    deploy: async (serialNumber, files, dryRun) =>
+    probe: async (serialNumber) =>
+      taps.hold(async () => {
+        const target = pickBoard(await deps.list(), serialNumber)
+        if (target.state === "bootsel") {
+          return { blank: true, credential: false, claimCode: false }
+        }
+        const { result } = await withBoard(serialNumber, async (port) =>
+          probeBoard(port, deps.repl)
+        )
+        return { blank: false, ...result }
+      }),
+    deploy: async (serialNumber, files, dryRun, setup) =>
       taps.hold(async () => {
         let flashed: string | undefined
         const target = pickBoard(await deps.list(), serialNumber)
@@ -203,7 +230,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
           flashed = (await deps.flash(serialNumber)).version
         }
         const { board, result } = await withBoard(serialNumber, async (port) =>
-          syncProject(port, files, dryRun, deps.repl)
+          syncProject(port, files, dryRun, deps.repl, setup)
         )
         return { board: ref(board), ...result, ...(flashed === undefined ? {} : { flashed }) }
       }),

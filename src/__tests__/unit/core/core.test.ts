@@ -113,6 +113,27 @@ describe("Core", () => {
     expect(ops.calls.at(-1)).toBe("deploy:-:/a:false")
   })
 
+  it("probes a board and passes a deploy's setup through", async () => {
+    const ops = fakeOps()
+    const c = core(ops)
+    expect(await c.handle(line({ verb: "probe" }))).toMatchObject({
+      ok: true,
+      data: { credential: true }
+    })
+    const setup = { provisioningUrl: "https://a.example", claimCode: "qmc_a.b" }
+    const data = Buffer.from("x").toString("base64")
+    await c.handle(line({ verb: "deploy", files: [{ path: "/a", data }], setup }))
+    expect(ops.setups).toEqual([setup])
+    const bad = await c.handle(
+      line({
+        verb: "deploy",
+        files: [{ path: "/a", data }],
+        setup: { ...setup, provisioningUrl: "http://x" }
+      })
+    )
+    expect(bad).toMatchObject({ ok: false, error: { code: "usage" } })
+  })
+
   it("refuses a deploy file path that isn't absolute", async () => {
     const reply = await core().handle(
       line({ verb: "deploy", files: [{ path: "main.py", data: "" }] })
