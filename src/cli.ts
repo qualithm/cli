@@ -4,15 +4,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { applyCommands } from "./commands/apply.ts"
 import { authorityCommands } from "./commands/authorities.ts"
+import { type BoardIo, runBoard } from "./commands/boards.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
 import { credentialCommands } from "./commands/credentials.ts"
 import { deviceCommands } from "./commands/devices.ts"
 import { enrollmentCommands } from "./commands/enrollments.ts"
 import { spaceCommands } from "./commands/spaces.ts"
 import { tokenCommands } from "./commands/tokens.ts"
+import { type CoreIo, runCore } from "./core/command.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
 import { buildMcpServer, callTool, type SessionFactory } from "./mcp.ts"
 import { type FetchAPI, Session, type SessionConfig } from "./platform.ts"
+import { TOOLS } from "./tools/index.ts"
 import { VERSION } from "./version.ts"
 
 /** Where the CLI reads its settings and writes its output; tests pass their own. */
@@ -25,6 +28,10 @@ export type CliIo = {
   fetch?: FetchAPI
   /** Serves `qualithm mcp`; defaults to stdio. */
   serveMcp?: (server: ReturnType<typeof buildMcpServer>) => Promise<void>
+  /** What `qualithm board` talks to; defaults to the user's core and terminal. @internal */
+  board?: Omit<BoardIo, "stdout" | "stderr">
+  /** What `qualithm core run` reaches for; defaults to the real machine. @internal */
+  core?: Omit<CoreIo, "stdout" | "stderr">
 }
 
 /** Every command, in the order help lists them. */
@@ -63,6 +70,9 @@ Usage:
   qualithm <resource> <verb> [flags]
   qualithm apply <manifest.yaml> [flags]
   qualithm mcp                          serve every tool over stdio, for an agent
+  qualithm deploy [dir]                 put a MicroPython project on a plugged-in board
+  qualithm board <verb> [flags]         a board plugged into this computer (see board --help)
+  qualithm core run | status | stop     the local device core (started for you when needed)
 
 Flags, accepted by every verb before or after its arguments:
   --url string     API base URL (env QUALITHM_API_URL)
@@ -78,6 +88,7 @@ Resources and verbs:
   enrollment list | create | revoke <id>
   space      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
+  board      list | flash | reset | logs | console
   apply      <manifest.yaml>            idempotent device-as-code reconcile
   version                               print the CLI version
 
@@ -88,6 +99,8 @@ Examples:
   qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
   qualithm apply fleet.yaml --dry-run
+  qualithm board flash
+  qualithm board logs --follow
 
 Exit codes:
   0 ok (incl. dry-run)  1 error  2 usage  3 auth  4 not-found  5 conflict
@@ -181,15 +194,40 @@ async function runMcp(args: string[], io: CliIo): Promise<number> {
   const { values } = parseArgs({ args, options: COMMON_OPTIONS, strict: false })
   const config = sessionConfig(io, values, `qualithm-mcp/${VERSION}`)
   const newSession: SessionFactory = (dryRun) => new Session({ ...config, dryRun })
+  let tools = TOOLS
   try {
-    // Fail at start rather than on the first call when there is no token.
     newSession(false)
   } catch (error) {
-    return report(io, false, failure(error), () => "")
+    // Boards need no account: serve their tools alone, so flashing works before signing up.
+    tools = TOOLS.filter((tool) => tool.local === true)
+    const message = error instanceof Error ? error.message : String(error)
+    io.stderr(`qualithm: ${message}; serving only the board tools\n`)
   }
   const serve = io.serveMcp ?? (async (server) => server.connect(new StdioServerTransport()))
-  await serve(buildMcpServer(newSession, VERSION))
+  await serve(buildMcpServer(newSession, VERSION, tools))
   return EXIT_CODES.ok
+}
+
+function boardIo(io: CliIo): BoardIo {
+  return {
+    newSession: (flags) => {
+      const config = sessionConfig(io, flags, `qualithm/${VERSION}`)
+      return (dryRun) => new Session({ ...config, dryRun })
+    },
+    ...io.board,
+    stdout: io.stdout,
+    stderr: io.stderr
+  }
+}
+
+/** Commands that parse their own arguments. */
+const SUBPROGRAMS: Readonly<
+  Record<string, ((args: string[], io: CliIo) => Promise<number>) | undefined>
+> = {
+  mcp: runMcp,
+  board: async (args, io) => runBoard(args, boardIo(io)),
+  deploy: async (args, io) => runBoard(["deploy", ...args], boardIo(io)),
+  core: async (args, io) => runCore(args, { ...io.core, stdout: io.stdout, stderr: io.stderr })
 }
 
 /**
@@ -215,10 +253,12 @@ export async function run(argv: readonly string[], io: CliIo): Promise<number> {
     case "-v":
       io.stdout(`qualithm ${VERSION}\n`)
       return EXIT_CODES.ok
-    case "mcp":
-      return runMcp(second === undefined ? rest : [second, ...rest], io)
     default:
       break
+  }
+  const subprogram = SUBPROGRAMS[first]
+  if (subprogram !== undefined) {
+    return subprogram(argv.slice(1), io)
   }
   // A single-word command, such as `apply`, takes its arguments where a verb would be.
   const single = COMMANDS.find((c): c is ToolCommand => c.path.length === 1 && c.path[0] === first)

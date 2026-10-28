@@ -41,7 +41,7 @@ export async function runAgentEval(argv: string[], io: EvalIo): Promise<number> 
   })
   const server = values.server ?? io.env.AGENT_EVAL_SERVER ?? ""
   const token = io.env.QUALITHM_API_TOKEN ?? ""
-  const apiUrl = values["api-url"] ?? io.env.QUALITHM_API_URL ?? "https://api.sandbox.qualithm.com"
+  const apiUrl = values["api-url"] ?? io.env.QUALITHM_API_URL ?? "https://api.test.qualithm.com"
   if (server === "" || token === "") {
     io.stderr("agent-eval: --server and QUALITHM_API_TOKEN are required; the eval did not run\n")
     return EXIT_CONFIG

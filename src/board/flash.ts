@@ -66,7 +66,7 @@ export async function copyToDrive(drive: string, bytes: Uint8Array): Promise<voi
 
 async function waitFor<T>(
   config: FlashConfig,
-  what: string,
+  late: string,
   find: (boards: Board[]) => T | undefined
 ): Promise<T> {
   const deadline = Date.now() + config.appear_timeout_ms
@@ -76,13 +76,22 @@ async function waitFor<T>(
       return found
     }
     if (Date.now() >= deadline) {
-      throw new CliError(`the board didn't ${what} in time`, "unavailable")
+      throw new CliError(late, "unavailable")
     }
     await config.sleep(config.poll_ms)
   }
 }
 
-function pick(boards: Board[], serialNumber: string | undefined): Board {
+/**
+ * Picks the board a flash acts on: the running one with `serialNumber`, or the only board,
+ * running or in BOOTSEL.
+ *
+ * @param boards - the boards plugged in
+ * @param serialNumber - which board, when more than one is plugged in
+ * @returns the board
+ * @throws {CliError} when no board matches, or several are plugged in and none is named
+ */
+export function pickBoard(boards: Board[], serialNumber: string | undefined): Board {
   if (serialNumber !== undefined) {
     const wanted = serialNumber.toLowerCase()
     const board = boards.find(
@@ -153,13 +162,16 @@ export async function flashMicroPython(
 ): Promise<FlashResult> {
   // Fetch first, so a failed download never leaves a board waiting in BOOTSEL.
   const bytes = await loadFirmware(firmware, config.firmware)
-  const board = pick(await config.list(), serialNumber)
+  const board = pickBoard(await config.list(), serialNumber)
   let drive: string
   let serial: string | undefined
   if (board.state === "micropython") {
     serial = board.serialNumber
     await withPort(config, board.port, async (port) => enterBootsel(port, config.repl))
-    drive = await waitFor(config, "show up as a drive", (boards) => {
+    // On macOS the drive can fail to mount until the board is plugged in again.
+    const late =
+      "the board restarted into BOOTSEL but no drive appeared: unplug it, plug it back in, and flash again"
+    drive = await waitFor(config, late, (boards) => {
       const found = boards.find((b) => b.state === "bootsel")
       return found?.state === "bootsel" ? found.drive : undefined
     })
@@ -167,12 +179,15 @@ export async function flashMicroPython(
     ;({ drive } = board)
   }
   await config.copy(drive, bytes)
-  const back = await waitFor(config, "restart running MicroPython", (boards) =>
-    boards.find(
-      (b): b is Running =>
-        b.state === "micropython" &&
-        (serial === undefined || b.serialNumber?.toLowerCase() === serial.toLowerCase())
-    )
+  const back = await waitFor(
+    config,
+    "the board didn't restart running MicroPython in time",
+    (boards) =>
+      boards.find(
+        (b): b is Running =>
+          b.state === "micropython" &&
+          (serial === undefined || b.serialNumber?.toLowerCase() === serial.toLowerCase())
+      )
   )
   const reply = await withPort(config, back.port, async (port) =>
     runCode(port, "import os\nu = os.uname()\nprint(u.release)\nprint(u.machine)", config.repl)

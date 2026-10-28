@@ -89,7 +89,7 @@ describe("runAgentEval", () => {
     expect(c.started[0]?.env).toEqual({
       PATH: "/bin",
       QUALITHM_API_TOKEN: "qmt_x",
-      QUALITHM_API_URL: "https://api.sandbox.qualithm.com"
+      QUALITHM_API_URL: "https://api.test.qualithm.com"
     })
     expect(c.out()).toMatch(/^agent-eval FAIL/)
     expect(JSON.parse(c.written["/tmp/r.json"] ?? "")).toMatchObject({ ok: false })
@@ -127,12 +127,12 @@ describe("runAgentEval", () => {
       "--server",
       "/srv/q.js",
       "--api-url",
-      "https://api.test.qualithm.com",
+      "https://api.dev.qualithm.com",
       "--zone",
       "de-fra-a"
     ]
     expect(await runAgentEval(argv, c.io)).toBe(0)
-    expect(c.started[0]?.env.QUALITHM_API_URL).toBe("https://api.test.qualithm.com")
+    expect(c.started[0]?.env.QUALITHM_API_URL).toBe("https://api.dev.qualithm.com")
   })
 
   it("fails when the server won't start", async () => {

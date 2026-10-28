@@ -101,15 +101,79 @@ export function cacheDir(
 }
 
 export const defaultFirmwareConfig: FirmwareConfig = {
-  cache_dir: cacheDir(),
+  // A getter, so importing the package never reads the home folder; config fields are snake_case.
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  get cache_dir() {
+    return cacheDir()
+  },
   fetch: async (url) => fetch(url)
 }
 
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex")
 
+/** A download pinned by its checksum. */
+export type Pinned = {
+  /** Names it in errors, e.g. `MicroPython 1.29.0`. */
+  label: string
+  url: string
+  /** The file's SHA-256, lowercase hex. */
+  sha256: string
+  /** The cached copy's extension, e.g. `.uf2`. */
+  ext: string
+}
+
 /**
- * Returns a firmware file's bytes, from the cache or by downloading it. Every copy is checked
- * against the pinned checksum and as UF2 before it's returned.
+ * Returns a pinned file's bytes, from the cache or by downloading it. Every copy is checked
+ * against the pinned checksum before it's returned.
+ *
+ * @param file - what to load
+ * @param config - cache folder and download
+ * @param check - a further check a download must pass before it's cached
+ * @returns the verified bytes
+ * @throws {CliError} when the download fails or doesn't match
+ */
+export async function loadPinned(
+  file: Pinned,
+  config: FirmwareConfig,
+  check: (bytes: Uint8Array) => void = () => undefined
+): Promise<Uint8Array> {
+  const path = join(config.cache_dir, `${file.sha256}${file.ext}`)
+  try {
+    const cached = new Uint8Array(await readFile(path))
+    if (sha256(cached) === file.sha256) {
+      return cached
+    }
+  } catch {
+    // Not cached yet.
+  }
+  let response: Response
+  try {
+    response = await config.fetch(file.url)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new CliError(`download ${file.label}: ${reason}`, "unavailable")
+  }
+  if (!response.ok) {
+    throw new CliError(
+      `download ${file.label}: ${file.url} answered ${String(response.status)}`,
+      "unavailable"
+    )
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (sha256(bytes) !== file.sha256) {
+    throw new CliError(`the ${file.label} download doesn't match its pinned checksum`, "error")
+  }
+  check(bytes)
+  await mkdir(config.cache_dir, { recursive: true })
+  const partial = `${path}.${String(process.pid)}.partial`
+  await writeFile(partial, bytes)
+  await rename(partial, path)
+  return bytes
+}
+
+/**
+ * Returns a firmware file's bytes, from the cache or by downloading it, checked against the
+ * pinned checksum and as UF2.
  *
  * @param firmware - the build
  * @param config - cache folder and download
@@ -120,39 +184,13 @@ export async function loadFirmware(
   firmware: Firmware,
   config: FirmwareConfig = defaultFirmwareConfig
 ): Promise<Uint8Array> {
-  const path = join(config.cache_dir, `${firmware.sha256}.uf2`)
-  try {
-    const cached = new Uint8Array(await readFile(path))
-    if (sha256(cached) === firmware.sha256) {
-      return cached
-    }
-  } catch {
-    // Not cached yet.
+  const pinned = {
+    label: `MicroPython ${firmware.version}`,
+    url: firmware.url,
+    sha256: firmware.sha256,
+    ext: ".uf2"
   }
-  let response: Response
-  try {
-    response = await config.fetch(firmware.url)
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    throw new CliError(`download MicroPython ${firmware.version}: ${reason}`, "unavailable")
-  }
-  if (!response.ok) {
-    throw new CliError(
-      `download MicroPython ${firmware.version}: ${firmware.url} answered ${String(response.status)}`,
-      "unavailable"
-    )
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (sha256(bytes) !== firmware.sha256) {
-    throw new CliError(
-      `the MicroPython ${firmware.version} download doesn't match its pinned checksum`,
-      "error"
-    )
-  }
-  checkUf2(bytes, firmware.families)
-  await mkdir(config.cache_dir, { recursive: true })
-  const partial = `${path}.${String(process.pid)}.partial`
-  await writeFile(partial, bytes)
-  await rename(partial, path)
-  return bytes
+  return loadPinned(pinned, config, (bytes) => {
+    checkUf2(bytes, firmware.families)
+  })
 }

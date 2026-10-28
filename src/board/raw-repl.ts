@@ -30,6 +30,17 @@ const CTRL_B = "\x02"
 const CTRL_C = "\x03"
 const CTRL_D = "\x04"
 const BANNER = "raw REPL; CTRL-B to exit\r\n>"
+const SOFT_REBOOT = "soft reboot\r\n"
+
+/**
+ * Turns off the board's LED. A soft reset stops the timer a status light plays from but leaves
+ * the pin as it was, which would read as a state. Boards without an `LED` pin skip it.
+ */
+export const LED_OFF = `try:
+    import machine
+    machine.Pin("LED", machine.Pin.OUT).value(0)
+except (ImportError, ValueError):
+    pass`
 
 /**
  * MicroPython's raw REPL over a serial port: code in, stdout and stderr out, with no echo. The
@@ -50,13 +61,19 @@ export class RawRepl {
   }
 
   /**
-   * Stops whatever the board is running and enters the raw REPL.
+   * Stops whatever the board is running and enters the raw REPL. A soft reset there stops the
+   * program's timers without running `main.py`, then the LED is turned off, so no light keeps
+   * showing a state nothing is running.
    *
    * @throws {CliError} with code `unavailable` when the board doesn't answer
    */
   async enter(): Promise<void> {
     await this.#write(`\r${CTRL_C}${CTRL_C}${CTRL_A}`)
     await this.#readUntil(BANNER, this.#config.enter_timeout_ms, "enter the raw REPL")
+    await this.#write(CTRL_D)
+    await this.#readUntil(SOFT_REBOOT, this.#config.enter_timeout_ms, "soft-reset the board")
+    await this.#readUntil(BANNER, this.#config.enter_timeout_ms, "enter the raw REPL")
+    await this.exec(LED_OFF)
   }
 
   /**

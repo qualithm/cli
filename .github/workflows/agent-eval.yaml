@@ -44,6 +44,8 @@ jobs:
         id: eval
         env:
           QUALITHM_API_TOKEN: ${{ secrets.QUALITHM_EVAL_API_TOKEN }}
+          # The test environment: prod-parity, and where the eval team and its token live.
+          QUALITHM_API_URL: https://api.test.qualithm.com
           FORCE_FAILURE: ${{ inputs.force-failure }}
         run: |
           if [ "$FORCE_FAILURE" = "true" ]; then
