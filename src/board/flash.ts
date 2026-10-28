@@ -218,7 +218,7 @@ export function defaultFlashConfig(open: (path: string) => Promise<SerialPort>):
     list: async () => listBoards(),
     open,
     copy: copyToDrive,
-    firmware: defaultFirmwareConfig(),
+    firmware: defaultFirmwareConfig,
     repl: defaultRawReplConfig,
     appear_timeout_ms: 30000,
     poll_ms: 250,

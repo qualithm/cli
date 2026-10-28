@@ -305,8 +305,19 @@ describe.skipIf(process.platform === "win32")("socketClient", () => {
     expect(tries).toBe(2)
   })
 
-  it("defaults to the user's own socket", () => {
-    expect(socketClient()).toHaveProperty("send")
+  it("defaults to the user's own socket, found on first use", async () => {
+    const started: string[] = []
+    const client = socketClient(undefined, {
+      ...wait,
+      wait_ms: 10,
+      start: (p) => {
+        started.push(p)
+      }
+    })
+    expect(started).toEqual([])
+    // Only hello: a core the user is running may answer it, and hello changes nothing.
+    await client.send({ verb: "hello" }).catch(() => undefined)
+    expect([[], [corePath()]]).toContainEqual(started)
     expect(defaultEnsureConfig.wait_ms).toBeGreaterThan(0)
   })
 })
