@@ -91,7 +91,7 @@ export function isSdkPath(path: string): boolean {
  */
 export async function loadSdk(
   sdk: Sdk = DEVICE_SDK,
-  config: FirmwareConfig = defaultFirmwareConfig
+  config: FirmwareConfig = defaultFirmwareConfig()
 ): Promise<ProjectFile[]> {
   const label = `Qualithm Device SDK ${sdk.version}`
   return Promise.all(

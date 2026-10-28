@@ -75,7 +75,7 @@ describe("cacheDir", () => {
 
   it("defaults to this machine", () => {
     expect(cacheDir()).toContain("qualithm")
-    expect(defaultFirmwareConfig.cache_dir).toBe(cacheDir())
+    expect(defaultFirmwareConfig().cache_dir).toBe(cacheDir())
   })
 })
 
@@ -170,7 +170,7 @@ describe("loadFirmware", () => {
   })
 
   it("fetches with the global fetch by default", async () => {
-    const response = await defaultFirmwareConfig.fetch("data:application/octet-stream,hi")
+    const response = await defaultFirmwareConfig().fetch("data:application/octet-stream,hi")
     expect(await response.text()).toBe("hi")
   })
 })
