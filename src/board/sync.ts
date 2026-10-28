@@ -4,6 +4,7 @@ import { join, relative, sep } from "node:path"
 
 import { CliError } from "../envelope.ts"
 import { defaultRawReplConfig, RawRepl, type RawReplConfig } from "./raw-repl.ts"
+import { isSdkPath, SDK_DIRS } from "./sdk.ts"
 import type { SerialPort } from "./serial.ts"
 
 /** One file of a project, at its path on the board. */
@@ -111,6 +112,13 @@ export async function collectProject(dir: string): Promise<ProjectFile[]> {
       "usage"
     )
   }
+  const sdk = files.find((f) => isSdkPath(f.path))
+  if (sdk !== undefined) {
+    throw new CliError(
+      `the project has ${sdk.path}, where deploy installs the device SDK: rename it`,
+      "usage"
+    )
+  }
   if (files.length === 0) {
     throw new CliError(`the project folder ${dir} has no files to deploy`, "usage")
   }
@@ -154,6 +162,17 @@ def _rm(p):
         os.remove(p)
     except OSError:
         pass
+def _ls(d):
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return
+    for n in names:
+        p = d + "/" + n
+        if os.stat(p)[0] & 0x4000:
+            _ls(p)
+        else:
+            print(p)
 `
 
 /** What a sync needs from a raw REPL session. */
@@ -220,7 +239,12 @@ export async function syncWith(
   const hashes = listing.trim().split(/\r?\n/)
   const changed = files.filter((f, i) => hashes[i]?.trim() !== sha256(f.bytes))
   const previous = await readManifest(repl)
-  const removed = previous.filter(
+  // The SDK's folders hold only the SDK: a stale copy there, say a .py, would shadow it.
+  const owned = (await run(repl, `for _d in ${JSON.stringify(SDK_DIRS)}:\n    _ls(_d)`))
+    .split(/\r?\n/)
+    .map((p) => p.trim())
+    .filter((p) => p !== "")
+  const removed = [...new Set([...previous, ...owned])].filter(
     (p) => !paths.includes(p) && !(RESERVED as readonly string[]).includes(p)
   )
   const result = {

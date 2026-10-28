@@ -8,6 +8,7 @@ import {
 import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
+import { loadSdk } from "../board/sdk.ts"
 import type { SerialPort } from "../board/serial.ts"
 import {
   probeBoard,
@@ -57,7 +58,7 @@ export type BoardOps = {
   /** Types text into a board's console. */
   write: (serialNumber: string | undefined, data: string) => Promise<BoardRef>
   /**
-   * Makes a board's files match a project and restarts it, flashing MicroPython first when the
+   * Makes a board's files match a project plus the device SDK and restarts it, flashing MicroPython first when the
    * board is blank.
    */
   deploy: (
@@ -86,6 +87,8 @@ export type BoardDeps = {
   read_wait_ms: number
   /** How many output chunks each board's buffer keeps. */
   max_chunks: number
+  /** The device SDK files every deploy puts beside the project. */
+  sdk: () => Promise<ProjectFile[]>
 }
 
 type Running = Extract<Board, { state: "micropython" }>
@@ -210,8 +213,9 @@ export function boardOps(deps: BoardDeps): BoardOps {
         )
         return { blank: false, ...result }
       }),
-    deploy: async (serialNumber, files, dryRun, setup) =>
+    deploy: async (serialNumber, project, dryRun, setup) =>
       taps.hold(async () => {
+        const files = [...project, ...(await deps.sdk())]
         let flashed: string | undefined
         const target = pickBoard(await deps.list(), serialNumber)
         if (target.state === "bootsel") {
@@ -253,6 +257,7 @@ export function defaultBoardOps(): BoardOps {
     poll_ms: 250,
     sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     read_wait_ms: 100,
-    max_chunks: 5000
+    max_chunks: 5000,
+    sdk: async () => loadSdk()
   })
 }

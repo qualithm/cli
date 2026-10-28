@@ -184,7 +184,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "deploy_project",
       description:
-        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential.",
+        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential.",
       mutating: true,
       local: true,
       input: {
