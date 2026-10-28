@@ -100,9 +100,14 @@ export function cacheDir(
   return join(xdg === undefined || xdg === "" ? join(home, ".cache") : xdg, "qualithm")
 }
 
-export const defaultFirmwareConfig: FirmwareConfig = {
-  cache_dir: cacheDir(),
-  fetch: async (url) => fetch(url)
+/**
+ * The real machine's cache folder and download. A function, so importing the package never reads
+ * the home folder.
+ *
+ * @returns the config
+ */
+export function defaultFirmwareConfig(): FirmwareConfig {
+  return { cache_dir: cacheDir(), fetch: async (url) => fetch(url) }
 }
 
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex")
@@ -178,7 +183,7 @@ export async function loadPinned(
  */
 export async function loadFirmware(
   firmware: Firmware,
-  config: FirmwareConfig = defaultFirmwareConfig
+  config: FirmwareConfig = defaultFirmwareConfig()
 ): Promise<Uint8Array> {
   const pinned = {
     label: `MicroPython ${firmware.version}`,
