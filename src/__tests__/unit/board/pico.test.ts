@@ -106,8 +106,18 @@ describe("RawRepl", () => {
       }
     })
     await repl.enter()
+    pauses.length = 0
     await repl.exec("print(12345)")
     expect(pauses).toEqual([7, 7])
+  })
+
+  it("soft-resets and turns the LED off on entering, so no light shows a stale state", async () => {
+    const board = new FakeBoard()
+    const repl = new RawRepl(board, fast)
+    await repl.enter()
+    expect(board.softResets).toBe(1)
+    expect(board.ledOffs).toBe(1)
+    expect(board.ran).toEqual([])
   })
 })
 
