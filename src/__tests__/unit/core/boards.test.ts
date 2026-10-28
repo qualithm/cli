@@ -54,7 +54,8 @@ describe("boardOps", () => {
     poll_ms: 1,
     sleep: async () => Promise.resolve(),
     read_wait_ms: 1,
-    max_chunks: 10
+    max_chunks: 10,
+    sdk: async () => Promise.resolve([])
   }
 
   /** Lists `lists` in turn, repeating the last; the board is plugged in by default. */
@@ -157,6 +158,17 @@ describe("boardOps", () => {
       unchanged: 0
     })
     expect(board.closed).toBe(true)
+  })
+
+  it("puts the device SDK beside the project", async () => {
+    const board = new FakeBoard()
+    const sdk = [{ path: "/lib/qualithm_device/pico.mpy", bytes: new Uint8Array([0x4d]) }]
+    const result = await ops(board, [[waiting]], { sdk: async () => Promise.resolve(sdk) }).deploy(
+      undefined,
+      [{ path: "/main.py", bytes: new Uint8Array() }],
+      true
+    )
+    expect(result.written).toEqual(["/main.py", "/lib/qualithm_device/pico.mpy"])
   })
 
   it("flashes a blank board before deploying to it", async () => {

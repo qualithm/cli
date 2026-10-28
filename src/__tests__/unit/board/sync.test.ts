@@ -87,6 +87,14 @@ class FakeFs implements Repl {
         .map((h) => `${h}\r\n`)
         .join("")
     }
+    const owned = /^for _d in (\[.*\]):/.exec(code)
+    if (owned !== null) {
+      const dirs = JSON.parse(owned[1] ?? "[]") as string[]
+      return [...this.files.keys()]
+        .filter((p) => dirs.some((d) => p.startsWith(`${d}/`)))
+        .map((p) => `${p}\r\n`)
+        .join("")
+    }
     if (code.startsWith("try:\n    print(open(")) {
       const manifest = this.files.get(MANIFEST)
       return `${manifest === undefined ? "[]" : Buffer.from(manifest).toString()}\r\n`
@@ -152,6 +160,18 @@ describe("collectProject", () => {
     expect(Buffer.from(files[1]?.bytes ?? []).toString()).toBe("print(1)")
   })
 
+  it.each(["lib/qualithm_device/pico.py", "lib/umqtt/simple.py", "lib/ssl.mpy"])(
+    "refuses %s, where deploy installs the SDK",
+    async (file) => {
+      const dir = await mkdtemp(join(tmpdir(), "proj-"))
+      await mkdir(join(dir, file, ".."), { recursive: true })
+      await writeFile(join(dir, file), "x")
+      await expect(collectProject(dir)).rejects.toThrow(
+        `the project has /${file}, where deploy installs the device SDK: rename it`
+      )
+    }
+  )
+
   it("refuses a file the device SDK owns", async () => {
     const dir = await project({ "main.py": "", "qualithm-credential.json": "{}" })
     await expect(collectProject(dir)).rejects.toThrow(
@@ -199,6 +219,22 @@ describe("syncWith", () => {
     const result = await syncWith(fs, [file("/main.py", "a")], false)
     expect(result.removed).toEqual([])
     expect(fs.files.has("/qualithm-credential.json")).toBe(true)
+  })
+
+  it("clears anything in the SDK's folders that isn't the SDK, such as a shadowing .py", async () => {
+    const fs = new FakeFs()
+    fs.files.set("/lib/qualithm_device/pico.py", new Uint8Array([1]))
+    fs.files.set("/lib/umqtt/robust.mpy", new Uint8Array([1]))
+    fs.files.set("/lib/sensor.py", new Uint8Array([1]))
+    const sdk = file("/lib/qualithm_device/pico.mpy", "m")
+    const result = await syncWith(fs, [file("/main.py", "a"), sdk], false)
+    expect(result.removed).toEqual(["/lib/qualithm_device/pico.py", "/lib/umqtt/robust.mpy"])
+    expect([...fs.files.keys()].sort()).toEqual([
+      MANIFEST,
+      "/lib/qualithm_device/pico.mpy",
+      "/lib/sensor.py",
+      "/main.py"
+    ])
   })
 
   it("reports what would change on a dry run, changing nothing", async () => {
