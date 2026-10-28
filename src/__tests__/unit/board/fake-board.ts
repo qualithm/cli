@@ -1,3 +1,4 @@
+import { LED_OFF } from "../../../board/raw-repl.ts"
 import { PortClosedError, type SerialPort } from "../../../board/serial.ts"
 
 /** What the fake board does with a piece of code: print, raise, or never answer. */
@@ -12,6 +13,10 @@ export class FakeBoard implements SerialPort {
   readonly ran: string[] = []
   readonly written: string[] = []
   closed = false
+  /** How many soft resets the board took in the raw REPL. */
+  softResets = 0
+  /** How many times the board was told to turn its LED off; kept out of `ran`. */
+  ledOffs = 0
   /** When false, the board ignores everything, as a hung board would. */
   answers = true
   /** When true, the board drops off USB as soon as it takes code, before replying. */
@@ -81,6 +86,17 @@ export class FakeBoard implements SerialPort {
         }
         const code = this.#code
         this.#code = ""
+        if (code === "") {
+          // An empty Ctrl-D in the raw REPL soft-resets the board, staying in the raw REPL.
+          this.softResets++
+          this.#out += `OK\r\nMPY: soft reboot\r\nraw REPL; CTRL-B to exit\r\n>`
+          return
+        }
+        if (code === LED_OFF) {
+          this.ledOffs++
+          this.#out += "OK\x04\x04>"
+          return
+        }
         this.ran.push(code)
         if (this.vanishes) {
           this.#gone = true

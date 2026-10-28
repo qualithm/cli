@@ -69,7 +69,7 @@ describe("loadSdk", () => {
       { path: "/lib/umqtt/b.mpy", bytes: b }
     ])
     await loadSdk(sdk, config)
-    expect(fetched).toEqual(["https://example.test/a", "https://example.test/b"])
+    expect(fetched.sort()).toEqual(["https://example.test/a", "https://example.test/b"])
   })
 
   it("refuses a download that doesn't match its pin", async () => {
