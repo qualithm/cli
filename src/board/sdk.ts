@@ -31,7 +31,7 @@ const indexFile = (path: string, sha256: string): SdkFile => ({
   sha256
 })
 
-const SDK_VERSION = "0.2.0"
+const SDK_VERSION = "0.3.1"
 
 /** Each module of the release and its SHA-256. */
 const SDK_MODULES: readonly (readonly [string, string])[] = [
@@ -39,15 +39,18 @@ const SDK_MODULES: readonly (readonly [string, string])[] = [
   ["_backoff", "424c0e9793cac20f6d62c56eed1c75d8e20e515ef83322fcd938b0d5bc0f9a70"],
   ["_capability", "d67c2b42f06ef36390c076bd40c600271eb16973098c2dc1a5cfd6b1e04ccd58"],
   ["_credential", "acb4c7a2ae566a41bf0e75bbeda6b164196863e09eb118158effff9ac3017caa"],
-  ["_device", "91378951974c63c8f8575ac640c6c06d01ed20915c278e96df8238164e22136f"],
+  ["_device", "fc1534de42d93c2a2a484cb22f9e732e84542d9af14c4fd1d33af472b344c104"],
   ["_errors", "5ca6bc4b558f05257cf74838a3cfe9d7ffdc9737210706a2254807b0a7aba3be"],
-  ["_provision", "ab702bb8684f61b31e8f322f380d6b6bf5c891b4e018e200e24bba58e2468e7a"],
+  ["_micropython", "873f7eeae004c582919748d397ca9da770ecd4a22c5c3232df63625e3c1fe702"],
+  ["_provision", "1f273002c8f3c3f2515e94108312382e6b31f61f74b67c578fddfc60a2980a24"],
   ["_roots", "76c07bf0f2b9267b8ed3cc5f96800b4c690bde6dd78dcf600d4d73093c15c0a8"],
   ["_subject", "64fdfef573256093ee31fbe2ce5ab0994464d11606fe4f812465ec327b4e6280"],
   ["_time", "d7bcc5a5c2fa8e9c1909644fce69c960688725f5dcdb90b78eaf557c1f69e4f6"],
+  ["board", "f4d52db90817a6ff46af8a5babe8e10b2aed78c8f7eea8c8bbc9efd606120203"],
   ["interfaces", "b6ddf6d4fb8bbd2b78e3208bbcf5381fad8f416402a439995bffa0bb328b2ee3"],
-  ["pico", "74759fbed7164e31ab55a1b1e5cb16d39a0e5f07b5a5456b69d22441decb70a6"],
-  ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"]
+  ["pico", "43435161eae56ea87796c409752daf7e345520f2eabf2c04fa50c185e0b6585f"],
+  ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"],
+  ["virtual", "9689951dc6f95d6d8a3e0c72e94a73d2bfe170440acc999872d1f7b91c7a3f98"]
 ]
 
 /** The Qualithm Device SDK for MicroPython, built for the MicroPython deploy flashes. */

@@ -46,6 +46,32 @@ qualithm --help
 Every verb takes `--url`, `--token`, `--team`, `--json` and `--dry-run`, before or after its
 arguments. `--team` defaults to the token's own team.
 
+### Run a project as a virtual device
+
+A virtual device runs a MicroPython project on this computer, with no board. It claims, connects and
+reports as a board does, and counts as a device on your plan. It runs on macOS and Linux; on
+Windows, use WSL.
+
+In a project folder whose `main.py` calls `board.start()` from the Qualithm Device SDK:
+
+```bash
+qualithm deploy --virtual
+```
+
+The first deploy downloads MicroPython and the SDK, claims the device into your team's space, and
+starts it. The device is named after the folder, for example `virtual:my-sensor`. A later deploy
+copies only what changed and restarts it, without claiming again. Follow its output, or restart it:
+
+```bash
+qualithm board logs --serial virtual:my-sensor -f
+```
+
+```bash
+qualithm board reset --serial virtual:my-sensor
+```
+
+An agent does the same through the `deploy_project` tool with `virtual: true`.
+
 ### MCP
 
 Add the server to your agent's MCP config:
