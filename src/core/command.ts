@@ -8,6 +8,7 @@ import { Core } from "./core.ts"
 import type { Hello } from "./protocol.ts"
 import { type CoreServer, defaultServeConfig, type ServeConfig, serveCore } from "./server.ts"
 import { corePath } from "./socket.ts"
+import { defaultVirtualOps, routedOps } from "./virtual.ts"
 
 /** Where `qualithm core` writes and what it reaches for; tests pass their own. */
 export type CoreIo = {
@@ -45,7 +46,7 @@ function print(io: CoreIo, json: boolean, result: Result, human: string): number
 
 async function runForeground(io: CoreIo, path: string, json: boolean): Promise<number> {
   let server: CoreServer | undefined
-  const ops = (io.boardOps ?? defaultBoardOps)()
+  const ops = (io.boardOps ?? (() => routedOps(defaultBoardOps(), defaultVirtualOps())))()
   const core = new Core(ops, VERSION, () => {
     void server?.close()
   })

@@ -6,6 +6,7 @@ import type { DeployResult } from "../core/boards.ts"
 import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
+import { VIRTUAL_PREFIX } from "../core/virtual.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "../envelope.ts"
 import { callTool, type SessionFactory } from "../mcp.ts"
 import { dash, table } from "../table.ts"
@@ -40,6 +41,7 @@ export type PlatformFlags = { url?: string; token?: string; team?: string }
 
 export const BOARD_USAGE = `Usage:
   qualithm deploy [dir] [--serial S]        put a MicroPython project folder on a board and restart it
+  qualithm deploy [dir] --virtual           run it on this computer as a virtual device instead
   qualithm board list                       the boards plugged into this computer
   qualithm board flash [--serial S]         put MicroPython on a board, blank or running
   qualithm board reset [--serial S]         restart a running board
@@ -48,7 +50,9 @@ export const BOARD_USAGE = `Usage:
   qualithm board console --input TEXT       type TEXT and print what the board answers
 
 Flags:
-  --serial string  the board's serial number, needed when more than one is plugged in
+  --serial string  the board's serial number, needed when more than one is plugged in;
+                   virtual:<folder> for a virtual device
+  --virtual        deploy to a virtual device on this computer, not a board
   --json           print one JSON envelope line
   --dry-run        name the board a flash, reset or console input would act on
 `
@@ -69,6 +73,7 @@ const OPTIONS = {
   url: { type: "string" },
   token: { type: "string" },
   team: { type: "string" },
+  virtual: { type: "boolean" },
   help: { type: "boolean", short: "h" }
 } as const
 
@@ -85,6 +90,7 @@ type Values = {
   url?: string
   token?: string
   team?: string
+  virtual?: boolean
   help?: boolean
 }
 
@@ -109,10 +115,13 @@ function boardsTable(boards: Board[]): string {
 function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: boolean): string {
   const lines: string[] = []
   const would = dryRun ? "would " : ""
+  const virtual = result.board.serialNumber?.startsWith(VIRTUAL_PREFIX) === true
   if (result.provisioned !== undefined) {
     const { spaceId, wifiNetwork } = result.provisioned
     lines.push(
-      `${would}set the board to claim itself into space ${spaceId} on Wi-Fi ${wifiNetwork}`
+      wifiNetwork === undefined
+        ? `${would}set the virtual device to claim itself into space ${spaceId}`
+        : `${would}set the board to claim itself into space ${spaceId} on Wi-Fi ${wifiNetwork}`
     )
   }
   if (result.flashed !== undefined) {
@@ -128,7 +137,11 @@ function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: 
   const summary = dryRun
     ? `dry-run: ${String(changes)} change(s), ${String(result.unchanged)} file(s) already match`
     : `deployed to ${where(result.board)}: ${String(result.written.length)} written, ${String(result.removed.length)} removed, ${String(result.unchanged)} unchanged; restarted`
-  return `${[...lines, summary].join("\n")}\n`
+  const follow =
+    virtual && !dryRun
+      ? [`follow its output: qualithm board logs --serial ${result.board.serialNumber ?? ""} -f`]
+      : []
+  return `${[...lines, summary, ...follow].join("\n")}\n`
 }
 
 function human(verb: string, data: unknown, dryRun: boolean): string {
@@ -183,6 +196,9 @@ function inputFor(
     }
     if (wifi !== undefined) {
       input.wifiNetwork = wifi
+    }
+    if (values.virtual === true) {
+      input.virtual = true
     }
   }
   if (verb === "flash" || verb === "reset" || verb === "console" || verb === "deploy") {
