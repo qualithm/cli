@@ -511,3 +511,104 @@ describe("qualithm board", () => {
     expect(bad.err()).toBe("qualithm: --after must be a whole number\n")
   })
 })
+
+describe("virtual deploy", () => {
+  const virtualOf = (dir: string): string =>
+    `virtual:${(dir.split("/").at(-1) ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`
+
+  it("claims a new virtual device with no Wi-Fi, named after its folder", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const created: unknown[] = []
+    const dir = await projectDir()
+    const result = await callTool(
+      tool(clientOf(ops), "deploy_project"),
+      () => fakeSession([{ id: "spc_1", name: "Lab" }], created),
+      { dir, virtual: true }
+    )
+    expect(ops.calls).toEqual([
+      `probe:${virtualOf(dir)}`,
+      `deploy:${virtualOf(dir)}:/main.py:false`
+    ])
+    expect(ops.setups).toEqual([
+      { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code" }
+    ])
+    expect(result).toMatchObject({ ok: true, data: { provisioned: { spaceId: "spc_1" } } })
+    expect(result.data).not.toHaveProperty("provisioned.wifiNetwork")
+    expect(created).toHaveLength(1)
+  })
+
+  it("plans the claim on a dry run without creating a code", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const created: unknown[] = []
+    const result = await callTool(
+      tool(clientOf(ops), "deploy_project"),
+      () => fakeSession([{ id: "spc_1", name: "Lab" }], created),
+      { dir: await projectDir(), virtual: true, dryRun: true }
+    )
+    expect(result).toMatchObject({ ok: true, data: { provisioned: { spaceId: "spc_1" } } })
+    expect(created).toEqual([])
+    expect(ops.setups).toEqual([undefined])
+  })
+
+  it("redeploys a claimed virtual device without the platform", async () => {
+    const ops = fakeOps()
+    const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, {
+      dir: await projectDir(),
+      virtual: true
+    })
+    expect(result).toMatchObject({ ok: true })
+    expect(result.data).not.toHaveProperty("provisioned")
+    expect(ops.setups).toEqual([undefined])
+  })
+
+  it("says claiming a new virtual device needs the platform", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, {
+      dir: await projectDir(),
+      virtual: true
+    })
+    expect(result).toMatchObject({ ok: false, code: "auth" })
+  })
+
+  it("refuses a serial number or Wi-Fi network for a virtual device", async () => {
+    for (const extra of [{ serialNumber: "abc" }, { wifiNetwork: "Home" }]) {
+      const result = await callTool(tool(clientOf(fakeOps()), "deploy_project"), noSession, {
+        dir: await projectDir(),
+        virtual: true,
+        ...extra
+      })
+      expect(result).toMatchObject({ ok: false, code: "usage" })
+    }
+  })
+
+  it("prints what qualithm deploy --virtual did and how to follow it", async () => {
+    const ops = fakeOps()
+    ops.state = { blank: false, credential: false, claimCode: false }
+    const dir = await projectDir()
+    const serial = virtualOf(dir)
+    ops.deploy = async () =>
+      Promise.resolve({
+        board: { port: "/data/virtual/x", serialNumber: serial },
+        written: ["/main.py"],
+        removed: [],
+        unchanged: 0
+      })
+    const c = capture({
+      client: clientOf(ops),
+      newSession: () => () => fakeSession([{ id: "spc_1", name: "Lab" }])
+    })
+    expect(await run(["deploy", dir, "--virtual"], c)).toBe(0)
+    expect(c.out()).toBe(
+      [
+        "set the virtual device to claim itself into space spc_1",
+        "write  /main.py",
+        `deployed to ${serial} on /data/virtual/x: 1 written, 0 removed, 0 unchanged; restarted`,
+        `follow its output: qualithm board logs --serial ${serial} -f`,
+        ""
+      ].join("\n")
+    )
+  })
+})

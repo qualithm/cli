@@ -10,6 +10,7 @@ import { type DeployResult, pickRunning, type ProbeResult } from "../core/boards
 import type { CoreClient } from "../core/client.ts"
 import { MAX_LIMIT, MAX_WAIT_MS } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
+import { virtualSerial } from "../core/virtual.ts"
 import { CliError } from "../envelope.ts"
 import {
   keychainWifi,
@@ -184,7 +185,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "deploy_project",
       description:
-        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential.",
+        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential. With `virtual`, runs the project on this computer as a virtual device instead: no board, the host's network, and a device on the platform like any other; read its output with board_logs and serialNumber `virtual:<folder name>`.",
       mutating: true,
       local: true,
       input: {
@@ -202,16 +203,39 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
           .describe(
             "the Wi-Fi network a new board joins; defaults to this computer's likeliest. The passphrase is read from this computer's keychain, never passed here"
           ),
+        virtual: z
+          .boolean()
+          .optional()
+          .describe(
+            "run the project on this computer as a virtual device rather than on a board; it counts as a device"
+          ),
         ...dryRunInput
       },
       run: async (session, input) => {
-        const files = await collectProject(resolve(input.dir))
-        const target = input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber }
+        const dir = resolve(input.dir)
+        const files = await collectProject(dir)
+        const virtual = input.virtual === true
+        if (virtual && (input.serialNumber !== undefined || input.wifiNetwork !== undefined)) {
+          throw new CliError(
+            "a virtual device takes no serial number or Wi-Fi: it is named after its folder and uses this computer's network",
+            "usage"
+          )
+        }
+        const serial = virtual ? virtualSerial(dir) : input.serialNumber
+        const target = serial === undefined ? {} : { serialNumber: serial }
         const dryRun = input.dryRun === true
         const state = (await client.send({ verb: "probe", ...target })) as ProbeResult
         let setup: Setup | undefined
         let provisioned: Provisioned | undefined
-        if (!state.credential) {
+        if (!state.credential && virtual) {
+          const spaceId = await pickSpace(session, input.spaceId).catch((error: unknown) => {
+            throw claimNeedsPlatform(error)
+          })
+          provisioned = { spaceId }
+          if (!dryRun) {
+            setup = await makeSetup(session, spaceId, undefined)
+          }
+        } else if (!state.credential) {
           // A board with no credential gets a fresh code each deploy, so an expired one never strands it.
           const spaceId = await pickSpace(session, input.spaceId).catch((error: unknown) => {
             throw claimNeedsPlatform(error)

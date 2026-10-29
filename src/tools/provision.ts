@@ -104,8 +104,8 @@ export function terminalWifi(ask: Ask, lookup: WifiLookup = {}): WifiResolver {
 /** What provisioning chose, for the deploy's result. The claim code and passphrase stay out. */
 export type Provisioned = {
   spaceId: string
-  /** The network the board will join. */
-  wifiNetwork: string
+  /** The network the board will join; absent for a virtual device, which uses the host's. */
+  wifiNetwork?: string
 }
 
 /**
