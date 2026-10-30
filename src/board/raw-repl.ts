@@ -122,7 +122,10 @@ export class RawRepl {
     await this.#write(CTRL_D)
     const reply = await this.#readExactly(2, this.#config.enter_timeout_ms, "send code")
     if (reply.toString("latin1") !== "OK") {
-      throw new CliError("the board refused the code: it isn't in the raw REPL", "error")
+      throw new CliError(
+        "the board isn't ready to take code: plug it back in and try again",
+        "error"
+      )
     }
   }
 

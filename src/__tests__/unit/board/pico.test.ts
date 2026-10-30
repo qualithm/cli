@@ -74,7 +74,7 @@ describe("runCode", () => {
     const error = await runCode(board, "print(1)", fast).catch((e: unknown) => e)
     expect(error).toMatchObject({
       code: "error",
-      message: "the board refused the code: it isn't in the raw REPL"
+      message: "the board isn't ready to take code: plug it back in and try again"
     })
   })
 })
@@ -153,7 +153,7 @@ describe("resetBoard and enterBootsel", () => {
   it("fails a reset the board refuses", async () => {
     const board = new FakeBoard()
     board.accept = "no"
-    await expect(resetBoard(board, fast)).rejects.toThrow("the board refused the code")
+    await expect(resetBoard(board, fast)).rejects.toThrow("the board isn't ready to take code")
   })
 
   it("reports a board that drops off USB while running code", async () => {
