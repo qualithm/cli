@@ -51,11 +51,11 @@ export const mintCredential = defineTool({
   }
 })
 
-/** Issues an mTLS certificate credential for a device from its CSR. */
+/** Issues a client certificate (mutual TLS) for a device from its certificate signing request. */
 export const issueCert = defineTool({
   name: "issue_cert",
   description:
-    "Issue an mTLS certificate credential for a device from a CSR. The certificate is returned once.",
+    "Issue a client certificate for mutual TLS (mTLS) for a device from its certificate signing request (CSR). The certificate is returned once.",
   mutating: true,
   input: {
     deviceId: deviceId("to issue a certificate for"),
