@@ -151,9 +151,14 @@ export const streamEvents = defineTool({
         ? DEFAULT_STREAM_TIMEOUT_MS
         : input.timeoutMs
     const teamId = await session.teamId()
-    // Aborting closes the stream once the read ends, whether by limit or by timeout.
+    // Aborting closes the stream once the read ends, whether by limit or by timeout. A plain timer,
+    // not AbortSignal.any with AbortSignal.timeout: Node 20 can garbage-collect that timeout signal
+    // before it fires, and the read never ends.
     const done = new AbortController()
-    const signal = AbortSignal.any([AbortSignal.timeout(timeoutMs), done.signal])
+    const { signal } = done
+    const timer = setTimeout(() => {
+      done.abort()
+    }, timeoutMs)
     try {
       const { raw } = await session.client
         .api(EventsApi)
@@ -163,6 +168,7 @@ export const streamEvents = defineTool({
         })
       return raw.body === null ? [] : await readEvents(raw.body, limit)
     } finally {
+      clearTimeout(timer)
       done.abort()
     }
   }
