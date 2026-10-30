@@ -20,11 +20,15 @@ export const listAuthorities = defineTool({
 /** Creates a certificate authority: one the platform generates, or one the builder brings. */
 export const createAuthority = defineTool({
   name: "create_authority",
-  description: "Create a device certificate authority (platform-generated or BYO).",
+  description:
+    "Create a device certificate authority. Leave kind as platform and Qualithm generates and holds it; choose byo (bring your own) only to sign devices with an authority you already run.",
   mutating: true,
   input: {
     name: z.string().min(1).describe("human-readable authority name"),
-    kind: z.enum(["platform", "byo"]).describe("authority kind: platform or byo"),
+    kind: z
+      .enum(["platform", "byo"])
+      .default("platform")
+      .describe("platform (the default: Qualithm generates it) or byo (bring your own)"),
     certificatePem: z
       .string()
       .min(1)

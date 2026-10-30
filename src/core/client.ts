@@ -66,7 +66,7 @@ async function exchange(path: string, line: string): Promise<CoreResponse> {
         try {
           resolve(JSON.parse(text) as CoreResponse)
         } catch {
-          reject(new CliError(`the core sent a reply that isn't json: ${STALE}`, "error"))
+          reject(new CliError(`the qualithm core sent a reply that isn't json: ${STALE}`, "error"))
         }
       })
     })
@@ -77,7 +77,9 @@ async function exchange(path: string, line: string): Promise<CoreResponse> {
     })
     socket.on("close", () => {
       settle(() => {
-        reject(new CliError("the core closed the connection before replying", "unavailable"))
+        reject(
+          new CliError("the qualithm core closed the connection before replying", "unavailable")
+        )
       })
     })
   })
@@ -126,7 +128,7 @@ export async function ensureCore(path: string, config: EnsureConfig): Promise<He
     const deadline = Date.now() + config.wait_ms
     while (!(await coreAnswers(path))) {
       if (Date.now() >= deadline) {
-        throw new CliError(`the core didn't start on ${path} in time`, "unavailable")
+        throw new CliError(`the qualithm core didn't start on ${path} in time`, "unavailable")
       }
       await config.sleep(config.poll_ms)
     }
