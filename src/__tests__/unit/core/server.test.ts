@@ -205,7 +205,7 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
     const path = socketIn()
     const close = await rawServer(path, "nope\n")
     await expect(sendCore(path, { verb: "hello" })).rejects.toThrow(
-      /^the core sent a reply that isn't json/
+      /^the qualithm core sent a reply that isn't json/
     )
     close()
   })
@@ -214,7 +214,7 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
     const path = socketIn()
     const close = await rawServer(path, "")
     await expect(sendCore(path, { verb: "hello" })).rejects.toThrow(
-      "the core closed the connection before replying"
+      "the qualithm core closed the connection before replying"
     )
     close()
   })
@@ -268,7 +268,9 @@ describe.skipIf(process.platform === "win32")("ensureCore", () => {
     const path = socketIn()
     await expect(
       ensureCore(path, { ...wait, wait_ms: 20, start: () => undefined })
-    ).rejects.toEqual(new CliError(`the core didn't start on ${path} in time`, "unavailable"))
+    ).rejects.toEqual(
+      new CliError(`the qualithm core didn't start on ${path} in time`, "unavailable")
+    )
   })
 })
 
