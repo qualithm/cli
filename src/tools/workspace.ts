@@ -111,7 +111,7 @@ export const getCommunicationPreferences = defineTool({
 export const listZones = defineTool({
   name: "list_zones",
   description:
-    "List the environment's device zones, open zones first. Only an open zone accepts create_space.",
+    "List the environment's device zones, open zones first. Only an open zone accepts create_scope.",
   mutating: false,
   input: {},
   run: async (session) => {

@@ -23,8 +23,7 @@ const WIDGET = {
 const DASHBOARD = {
   id: "dash_1",
   teamId: "team_1",
-  spaceId: null,
-  spaceName: null,
+  scopeId: null,
   name: "lab",
   payload: [],
   createdAt: "2026-10-01T00:00:00.000Z",
@@ -82,13 +81,13 @@ describe("dashboard tools", () => {
   })
 
   it("creates a scoped dashboard with widgets", async () => {
-    const input = { name: "lab", spaceId: "spc_1", payload: [WIDGET] }
+    const input = { name: "lab", scopeId: "spc_1", payload: [WIDGET] }
     const { result, requests } = await call(createDashboard, input)
     expect(result).toMatchObject({ ok: true, data: { id: "dash_1" } })
     expect(requests.at(-1)).toMatchObject({
       method: "POST",
       path: "/v1/teams/team_1/dashboards",
-      body: { name: "lab", spaceId: "spc_1", payload: [WIDGET] }
+      body: { name: "lab", scopeId: "spc_1", payload: [WIDGET] }
     })
   })
 
@@ -123,13 +122,13 @@ describe("dashboard tools", () => {
   })
 
   it("updates only the fields given", async () => {
-    const input = { dashboardId: "dash_1", name: "new", spaceId: "spc_1", payload: [WIDGET] }
+    const input = { dashboardId: "dash_1", name: "new", scopeId: "spc_1", payload: [WIDGET] }
     const { result, requests } = await call(updateDashboard, input)
     expect(result).toMatchObject({ ok: true, data: { id: "dash_1" } })
     expect(requests.at(-1)).toMatchObject({
       method: "PATCH",
       path: "/v1/teams/team_1/dashboards/dash_1",
-      body: { name: "new", spaceId: "spc_1", payload: [WIDGET] }
+      body: { name: "new", scopeId: "spc_1", payload: [WIDGET] }
     })
     const { requests: bare } = await call(updateDashboard, { dashboardId: "dash_1" })
     expect(bare.at(-1)?.body).toEqual({})

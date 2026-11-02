@@ -68,7 +68,7 @@ const OPTIONS = {
   after: { type: "string" },
   input: { type: "string" },
   wait: { type: "string" },
-  space: { type: "string" },
+  scope: { type: "string" },
   wifi: { type: "string" },
   url: { type: "string" },
   token: { type: "string" },
@@ -85,7 +85,7 @@ type Values = {
   after?: string
   input?: string
   wait?: string
-  space?: string
+  scope?: string
   wifi?: string
   url?: string
   token?: string
@@ -117,11 +117,11 @@ function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: 
   const would = dryRun ? "would " : ""
   const virtual = result.board.serialNumber?.startsWith(VIRTUAL_PREFIX) === true
   if (result.provisioned !== undefined) {
-    const { spaceId, wifiNetwork } = result.provisioned
+    const { scopeId, wifiNetwork } = result.provisioned
     lines.push(
       wifiNetwork === undefined
-        ? `${would}set the virtual device to claim itself into space ${spaceId}`
-        : `${would}set the board to claim itself into space ${spaceId} on Wi-Fi ${wifiNetwork}`
+        ? `${would}set the virtual device to claim itself into scope ${scopeId}`
+        : `${would}set the board to claim itself into scope ${scopeId} on Wi-Fi ${wifiNetwork}`
     )
   }
   if (result.flashed !== undefined) {
@@ -189,10 +189,10 @@ function inputFor(
   const input: Record<string, unknown> = serial === undefined ? {} : { serialNumber: serial }
   if (verb === "deploy") {
     input.dir = positionals[1] ?? "."
-    const space = stringOption(values, "space")
+    const scope = stringOption(values, "scope")
     const wifi = stringOption(values, "wifi")
-    if (space !== undefined) {
-      input.spaceId = space
+    if (scope !== undefined) {
+      input.scopeId = scope
     }
     if (wifi !== undefined) {
       input.wifiNetwork = wifi

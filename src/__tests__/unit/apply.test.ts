@@ -18,7 +18,7 @@ function manifest(body: string): string {
   return path
 }
 
-const ONE = "spaces:\n  - id: spc_1\n    devices:\n      - name: gw-1\n"
+const ONE = "scopes:\n  - id: spc_1\n    devices:\n      - name: gw-1\n"
 
 const pageOf = (items: unknown[], last = 1): Reply => ({
   status: 200,
@@ -47,12 +47,12 @@ describe("apply", () => {
     const c = capture({}, routes())
     expect(await run(["apply", manifest(ONE)], c.io)).toBe(0)
     expect(mutations(c)).toEqual([
-      { method: "POST", path: "/v1/teams/team_1/devices", body: { spaceId: "spc_1" } },
+      { method: "POST", path: "/v1/teams/team_1/devices", body: { scopeId: "spc_1" } },
       { method: "PATCH", path: "/v1/teams/team_1/devices/dev_new", body: { name: "gw-1" } }
     ])
     expect(c.out()).toBe(
       table([
-        ["SPACE", "DEVICE", "ACTION", "ID"],
+        ["SCOPE", "DEVICE", "ACTION", "ID"],
         ["spc_1", "gw-1", "create", "dev_new"]
       ])
     )
@@ -69,11 +69,11 @@ describe("apply", () => {
     expect(lines).toHaveLength(1)
     expect(JSON.parse(lines[0] ?? "")).toEqual({
       ok: true,
-      data: [{ space: "spc_1", device: "gw-1", action: "exists" }]
+      data: [{ scope: "spc_1", device: "gw-1", action: "exists" }]
     })
   })
 
-  it("lists every page of a space's devices, filtered by space", async () => {
+  it("lists every page of a scope's devices, filtered by scope", async () => {
     const c = capture(
       {},
       routes({ "GET /v1/teams/team_1/devices": pageOf([{ ...DEVICE, name: "gw-1" }], 2) })
@@ -84,15 +84,15 @@ describe("apply", () => {
     expect(c.out()).toContain("exists")
   })
 
-  it("parses a JSON manifest and a space with no devices", async () => {
+  it("parses a JSON manifest and a scope with no devices", async () => {
     const path = manifest(
-      JSON.stringify({ spaces: [{ id: "spc_1", devices: [{ name: "gw-1" }] }, { id: "spc_2" }] })
+      JSON.stringify({ scopes: [{ id: "spc_1", devices: [{ name: "gw-1" }] }, { id: "spc_2" }] })
     )
     const c = capture({}, routes({ "GET /v1/teams/team_1/devices": pageOf([], 0) }))
     expect(await run(["apply", path, "--json"], c.io)).toBe(0)
     expect(JSON.parse(c.out())).toEqual({
       ok: true,
-      data: [{ space: "spc_1", device: "gw-1", action: "create", id: "dev_new" }]
+      data: [{ scope: "spc_1", device: "gw-1", action: "create", id: "dev_new" }]
     })
   })
 
@@ -102,7 +102,7 @@ describe("apply", () => {
     expect(mutations(c)).toEqual([])
     expect(c.out()).toBe(
       table([
-        ["SPACE", "DEVICE", "ACTION", "ID"],
+        ["SCOPE", "DEVICE", "ACTION", "ID"],
         ["spc_1", "gw-1", "would-create", "-"]
       ])
     )
@@ -114,7 +114,7 @@ describe("apply", () => {
     expect(JSON.parse(c.out())).toEqual({
       ok: true,
       dryRun: true,
-      data: [{ space: "spc_1", device: "gw-1", action: "would-create" }]
+      data: [{ scope: "spc_1", device: "gw-1", action: "would-create" }]
     })
   })
 
@@ -155,14 +155,14 @@ describe("apply", () => {
   })
 
   it.each([
-    ["malformed YAML", "spaces: [oops\n", /^parse manifest: /],
-    ["the wrong shape", "spaces: 5\n", /^parse manifest: spaces: /],
-    ["no spaces", "spaces: []\n", /^manifest declares no spaces$/],
-    ["an empty file", "", /^manifest declares no spaces$/],
-    ["a space without an id", "spaces:\n  - devices:\n      - name: gw\n", /missing an id$/],
+    ["malformed YAML", "scopes: [oops\n", /^parse manifest: /],
+    ["the wrong shape", "scopes: 5\n", /^parse manifest: scopes: /],
+    ["no scopes", "scopes: []\n", /^manifest declares no scopes$/],
+    ["an empty file", "", /^manifest declares no scopes$/],
+    ["a scope without an id", "scopes:\n  - devices:\n      - name: gw\n", /missing an id$/],
     [
       "a device without a name",
-      'spaces:\n  - id: spc_1\n    devices:\n      - name: ""\n',
+      'scopes:\n  - id: spc_1\n    devices:\n      - name: ""\n',
       /missing a name$/
     ]
   ])("rejects %s as usage", async (_label, body, message) => {

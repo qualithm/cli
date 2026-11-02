@@ -52,7 +52,7 @@ export const AUTHORITY = {
 export const ENROLLMENT = {
   id: "enr_1",
   teamId: "team_1",
-  spaceId: "spc_1",
+  scopeId: "spc_1",
   label: "",
   status: "pending",
   claimedDeviceId: null,
@@ -92,8 +92,7 @@ const BROKER = { host: "gw.qualithm.com", port: 8883 }
 /** A device as the API returns it. */
 export const DEVICE = {
   id: "dev_1",
-  spaceId: "spc_1",
-  spaceName: "lab",
+  scopeId: "spc_1",
   teamId: "team_1",
   name: "sensor",
   createdAt: "2026-10-01T00:00:00.000Z",
@@ -101,10 +100,11 @@ export const DEVICE = {
   parkedAt: null
 }
 
-/** A space as the API returns it. */
-export const SPACE = {
+/** A scope as the API returns it. */
+export const SCOPE = {
   id: "spc_1",
   teamId: "team_1",
+  parentId: null,
   name: "lab",
   zone: "de-fra-a",
   createdAt: "2026-10-01T00:00:00.000Z",
@@ -118,11 +118,12 @@ export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
   "GET /v1/teams/team_1/devices/dev_1": { status: 200, body: { data: DEVICE } },
   "PATCH /v1/teams/team_1/devices/dev_1": { status: 204 },
   "DELETE /v1/teams/team_1/devices/dev_1": { status: 204 },
-  "GET /v1/teams/team_1/spaces": { status: 200, body: page([SPACE]) },
-  "POST /v1/teams/team_1/spaces": { status: 201, body: { data: SPACE } },
-  "GET /v1/teams/team_1/spaces/spc_1": { status: 200, body: { data: SPACE } },
-  "PATCH /v1/teams/team_1/spaces/spc_1": { status: 204 },
-  "DELETE /v1/teams/team_1/spaces/spc_1": { status: 204 },
+  "GET /v1/teams/team_1/scopes": { status: 200, body: page([SCOPE]) },
+  "POST /v1/teams/team_1/scopes": { status: 201, body: { data: SCOPE } },
+  "GET /v1/teams/team_1/scopes/spc_1": { status: 200, body: { data: SCOPE } },
+  "PATCH /v1/teams/team_1/scopes/spc_1": { status: 204 },
+  "DELETE /v1/teams/team_1/scopes/spc_1": { status: 204 },
+  "GET /v1/teams/team_1/scopes/spc_1/devices": { status: 200, body: page([DEVICE]) },
   "GET /v1/teams/team_1/devices/dev_1/credentials": { status: 200, body: { data: [CREDENTIAL] } },
   "POST /v1/teams/team_1/devices/dev_1/credentials": {
     status: 201,

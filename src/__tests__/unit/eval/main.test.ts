@@ -38,7 +38,7 @@ function io(env: Record<string, string>, connection?: Partial<McpConnection>): H
         started.push({ command, args, env: serverEnv })
         await Promise.resolve()
         return {
-          call: async () => Promise.reject(new EvalToolError("list_spaces: auth: no")),
+          call: async () => Promise.reject(new EvalToolError("list_scopes: auth: no")),
           close: async () => {
             closed = true
             await Promise.resolve()
@@ -98,8 +98,8 @@ describe("runAgentEval", () => {
 
   it("passes when every step does, with the API URL and zone from flags", async () => {
     const replies: Record<string, unknown> = {
-      list_spaces: { items: [] },
-      create_space: { id: "spc_1" },
+      list_scopes: { items: [] },
+      create_scope: { id: "spc_1" },
       create_enrollment: { enrollment: { id: "enr_1" }, code: "QM" },
       get_telemetry: { items: [] }
     }
@@ -110,8 +110,8 @@ describe("runAgentEval", () => {
         if (name === "get_telemetry") {
           return { items: [{ value }] }
         }
-        if (name === "create_space") {
-          expect(args).toEqual({ zone: "de-fra-a" })
+        if (name === "create_scope") {
+          expect(args).toEqual({ name: "agent-eval", zone: "de-fra-a" })
         }
         return replies[name]
       }
