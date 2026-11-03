@@ -7,7 +7,7 @@ import { defineTool, dryRunInput, pageInput, type Tool } from "./tool.ts"
 const automationId = (what: string): z.ZodString =>
   z.string().min(1).describe(`id of the automation ${what}`)
 
-const spaceId = (description: string): z.ZodOptional<z.ZodString> =>
+const scopeId = (description: string): z.ZodOptional<z.ZodString> =>
   z.string().min(1).optional().describe(description)
 
 // The trigger and chain pass through as given; the platform validates their contents.
@@ -69,7 +69,7 @@ export const createAutomation = defineTool({
   mutating: true,
   input: {
     name: z.string().min(1).describe("automation name"),
-    spaceId: spaceId("id of the space to scope the automation to; omit for team-wide"),
+    scopeId: scopeId("id of the scope to bind the automation to; omit for team-wide"),
     payload: payload(
       "automation document: trigger plus ordered condition/action chain; exclusive with template"
     ),
@@ -91,7 +91,7 @@ export const createAutomation = defineTool({
       teamId,
       createAutomationRequest: {
         name: input.name,
-        ...(input.spaceId === undefined ? {} : { spaceId: input.spaceId }),
+        ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
         ...(input.payload === undefined
           ? {}
           : { payload: input.payload as unknown as CreateAutomationRequestPayload }),
@@ -122,7 +122,7 @@ export const getAutomation = defineTool({
 export const updateAutomation = defineTool({
   name: "update_automation",
   description:
-    "Update an automation's name, space, chain or template params, or enable or disable it.",
+    "Update an automation's name, scope, chain or template params, or enable or disable it.",
   mutating: true,
   input: {
     automationId: automationId("to update"),
@@ -131,7 +131,7 @@ export const updateAutomation = defineTool({
       .boolean()
       .optional()
       .describe("true so its trigger fires, false to pause it without deleting it"),
-    spaceId: spaceId("new space id to scope the automation to"),
+    scopeId: scopeId("new scope id to bind the automation to"),
     payload: payload("new trigger+chain document"),
     template: z.string().min(1).optional().describe("template id to re-expand the chain from"),
     params: params("template slot values, required with template"),
@@ -146,7 +146,7 @@ export const updateAutomation = defineTool({
       updateAutomationRequest: {
         ...(input.name === undefined ? {} : { name: input.name }),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
-        ...(input.spaceId === undefined ? {} : { spaceId: input.spaceId }),
+        ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
         ...(input.payload === undefined
           ? {}
           : { payload: input.payload as unknown as CreateAutomationRequestPayload }),

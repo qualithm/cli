@@ -9,7 +9,7 @@ import { type Command, type ParsedArgs, readFileArg } from "./command.ts"
 /** A manifest's shape as written; emptiness is checked after, with clearer messages. */
 const manifestShape = z
   .object({
-    spaces: z
+    scopes: z
       .array(
         z.object({
           id: z.string().nullish(),
@@ -24,7 +24,7 @@ const manifestShape = z
  * Reads and checks a device-as-code manifest. YAML is a superset of JSON, so either parses.
  *
  * @param path - the manifest file
- * @returns the spaces it declares, each with its devices
+ * @returns the scopes it declares, each with its devices
  * @throws {CliError} when the file can't be read (`error`), or is malformed or empty (`usage`)
  */
 function readManifest(path: string): { id: string; devices: { name: string }[] }[] {
@@ -42,21 +42,21 @@ function readManifest(path: string): { id: string; devices: { name: string }[] }
     const detail = (issue?.message ?? "invalid manifest").toLowerCase()
     throw new CliError(`parse manifest: ${where === "" ? detail : `${where}: ${detail}`}`)
   }
-  const spaces = shaped.data?.spaces ?? []
-  if (spaces.length === 0) {
-    throw new CliError("manifest declares no spaces")
+  const scopes = shaped.data?.scopes ?? []
+  if (scopes.length === 0) {
+    throw new CliError("manifest declares no scopes")
   }
-  return spaces.map((space) => {
-    if (space.id === undefined || space.id === null || space.id === "") {
-      throw new CliError("manifest space is missing an id")
+  return scopes.map((scope) => {
+    if (scope.id === undefined || scope.id === null || scope.id === "") {
+      throw new CliError("manifest scope is missing an id")
     }
-    const devices = (space.devices ?? []).map(({ name }) => {
+    const devices = (scope.devices ?? []).map(({ name }) => {
       if (name === undefined || name === null || name === "") {
         throw new CliError("manifest device is missing a name")
       }
       return { name }
     })
-    return { id: space.id, devices }
+    return { id: scope.id, devices }
   })
 }
 
@@ -71,12 +71,12 @@ export const applyCommands: readonly Command[] = [
       if (path === undefined || path === "") {
         throw new CliError("a manifest path is required")
       }
-      return { spaces: readManifest(path) }
+      return { scopes: readManifest(path) }
     },
     human: (data: unknown): string =>
       table([
-        ["SPACE", "DEVICE", "ACTION", "ID"],
-        ...(data as ApplyResult[]).map((r) => [r.space, r.device, r.action, dash(r.id)])
+        ["SCOPE", "DEVICE", "ACTION", "ID"],
+        ...(data as ApplyResult[]).map((r) => [r.scope, r.device, r.action, dash(r.id)])
       ])
   }
 ]

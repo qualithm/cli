@@ -58,7 +58,7 @@ In a project folder whose `main.py` calls `board.start()` from the Qualithm Devi
 qualithm deploy --virtual
 ```
 
-The first deploy downloads MicroPython and the SDK, claims the device into your team's space, and
+The first deploy downloads MicroPython and the SDK, claims the device into your team's scope, and
 starts it. The device is named after the folder, for example `virtual:my-sensor`. A later deploy
 copies only what changed and restarts it, without claiming again. Follow its output, or restart it:
 

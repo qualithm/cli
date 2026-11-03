@@ -110,28 +110,28 @@ describe("enrollment", () => {
 
   it("creates a claim code and shows it once", async () => {
     const c = capture()
-    const args = ["enrollment", "new", "--space", "spc_1", "--label", "lab"]
+    const args = ["enrollment", "new", "--scope", "spc_1", "--label", "lab"]
     expect(await run([...args, "--expires-minutes", "60"], c.io)).toBe(0)
     expect(c.out()).toBe(
-      "enrollment enr_1 created for space spc_1\nclaim code (shown once): QM-1234\n"
+      "enrollment enr_1 created for scope spc_1\nclaim code (shown once): QM-1234\n"
     )
     expect(c.requests.at(-1)?.body).toEqual({
-      spaceId: "spc_1",
+      scopeId: "spc_1",
       label: "lab",
       expiresInMinutes: 60
     })
   })
 
-  it("sends only the space when nothing else is given", async () => {
+  it("sends only the scope when nothing else is given", async () => {
     const c = capture()
-    expect(await run(["enrollment", "create", "--space", "spc_1"], c.io)).toBe(0)
-    expect(c.requests.at(-1)?.body).toEqual({ spaceId: "spc_1" })
+    expect(await run(["enrollment", "create", "--scope", "spc_1"], c.io)).toBe(0)
+    expect(c.requests.at(-1)?.body).toEqual({ scopeId: "spc_1" })
   })
 
-  it("requires a space", async () => {
+  it("requires a scope", async () => {
     const c = capture()
     expect(await run(["enrollment", "create"], c.io)).toBe(2)
-    expect(c.err()).toBe("qualithm: --space is required\n")
+    expect(c.err()).toBe("qualithm: --scope is required\n")
   })
 
   it("revokes by id, and plans it on a dry run", async () => {

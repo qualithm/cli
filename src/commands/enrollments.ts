@@ -25,8 +25,8 @@ export const enrollmentCommands: readonly Command[] = [
     human: (data: unknown): string => {
       const page = data as EnrollmentPage
       return table([
-        ["ID", "SPACE", "LABEL", "STATUS", "EXPIRES"],
-        ...page.items.map((e) => [e.id, e.spaceId, dash(e.label), e.status, when(e.expiresAt)])
+        ["ID", "SCOPE", "LABEL", "STATUS", "EXPIRES"],
+        ...page.items.map((e) => [e.id, e.scopeId, dash(e.label), e.status, when(e.expiresAt)])
       ])
     }
   },
@@ -35,17 +35,17 @@ export const enrollmentCommands: readonly Command[] = [
     aliases: ["new"],
     tool: createEnrollment,
     options: {
-      space: { type: "string" },
+      scope: { type: "string" },
       label: { type: "string" },
       "expires-minutes": { type: "string" }
     },
     toInput: ({ values }: ParsedArgs): Record<string, unknown> => {
-      const spaceId = stringOption(values, "space")
-      if (spaceId === undefined) {
-        throw new CliError("--space is required")
+      const scopeId = stringOption(values, "scope")
+      if (scopeId === undefined) {
+        throw new CliError("--scope is required")
       }
       return {
-        spaceId,
+        scopeId,
         label: stringOption(values, "label"),
         expiresInMinutes: intOption(values, "expires-minutes")
       }
@@ -53,7 +53,7 @@ export const enrollmentCommands: readonly Command[] = [
     human: (data: unknown): string => {
       const { enrollment, code } = data as EnrollmentCode
       return (
-        `enrollment ${enrollment.id} created for space ${enrollment.spaceId}\n` +
+        `enrollment ${enrollment.id} created for scope ${enrollment.scopeId}\n` +
         `claim code (shown once): ${code}\n`
       )
     }

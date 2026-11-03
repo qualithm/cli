@@ -16,14 +16,14 @@ export const listEnrollments = defineTool({
   }
 })
 
-/** Creates a one-time claim code a device uses to enroll into a space. */
+/** Creates a one-time claim code a device uses to enroll into a scope. */
 export const createEnrollment = defineTool({
   name: "create_enrollment",
   description:
     "Create a one-time device enrollment claim code. The plaintext code is returned once.",
   mutating: true,
   input: {
-    spaceId: z.string().min(1).describe("id of the space the device will enroll into"),
+    scopeId: z.string().min(1).describe("id of the scope the device will enroll into"),
     label: z.string().optional().describe("human-readable label for the enrollment"),
     expiresInMinutes: z
       .number()
@@ -38,7 +38,7 @@ export const createEnrollment = defineTool({
     const { data } = await session.client.api(EnrollmentsApi).createEnrollment({
       teamId,
       createEnrollmentRequest: {
-        spaceId: input.spaceId,
+        scopeId: input.scopeId,
         ...(input.label === undefined ? {} : { label: input.label }),
         ...(input.expiresInMinutes === undefined
           ? {}

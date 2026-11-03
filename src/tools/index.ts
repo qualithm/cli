@@ -16,7 +16,7 @@ import { createDevice, deleteDevice, getDevice, listDevices, updateDevice } from
 import { createEnrollment, listEnrollments, revokeEnrollment } from "./enrollments.ts"
 import { memberTools } from "./members.ts"
 import { observabilityTools } from "./observability.ts"
-import { createSpace, deleteSpace, getSpace, listSpaces, updateSpace } from "./spaces.ts"
+import { createScope, deleteScope, getScope, listScopes, updateScope } from "./scopes.ts"
 import { teamTools } from "./teams.ts"
 import { listApiTokens, revokeApiToken } from "./tokens.ts"
 import type { Tool } from "./tool.ts"
@@ -43,11 +43,11 @@ export const TOOLS: readonly Tool[] = [
   listEnrollments,
   createEnrollment,
   revokeEnrollment,
-  listSpaces,
-  getSpace,
-  createSpace,
-  updateSpace,
-  deleteSpace,
+  listScopes,
+  getScope,
+  createScope,
+  updateScope,
+  deleteScope,
   listApiTokens,
   revokeApiToken,
   ...teamTools,
