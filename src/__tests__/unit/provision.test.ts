@@ -1,4 +1,4 @@
-import { EnrollmentsApi, SpacesApi } from "@qualithm/platform"
+import { EnrollmentsApi, ScopesApi } from "@qualithm/platform"
 import { describe, expect, it } from "vitest"
 
 import { CliError } from "../../envelope.ts"
@@ -8,7 +8,7 @@ import {
   keychainWifi,
   makeSetup,
   pickNetwork,
-  pickSpace,
+  pickScope,
   terminalWifi,
   type WifiLookup
 } from "../../tools/provision.ts"
@@ -35,9 +35,9 @@ function asker(answers: string[]): Ask & { asked: string[] } {
   }
 }
 
-/** A session whose spaces and enrollments come from fixtures. */
+/** A session whose scopes and enrollments come from fixtures. */
 export function fakeSession(
-  spaces: { id: string; name: string }[],
+  scopes: { id: string; name: string }[],
   created: unknown[] = []
 ): Session {
   return {
@@ -45,8 +45,8 @@ export function fakeSession(
     teamId: async () => Promise.resolve("team_1"),
     client: {
       api: (api: unknown) => {
-        if (api === SpacesApi) {
-          return { listSpaces: async () => Promise.resolve({ data: { items: spaces } }) }
+        if (api === ScopesApi) {
+          return { listScopes: async () => Promise.resolve({ data: { items: scopes } }) }
         }
         if (api === EnrollmentsApi) {
           return {
@@ -128,25 +128,25 @@ describe("terminalWifi", () => {
   })
 })
 
-describe("pickSpace", () => {
-  it("takes the named space, else the team's only one", async () => {
-    expect(await pickSpace(fakeSession([]), "spc_named")).toBe("spc_named")
-    expect(await pickSpace(fakeSession([{ id: "spc_1", name: "Lab" }]), undefined)).toBe("spc_1")
+describe("pickScope", () => {
+  it("takes the named scope, else the team's only one", async () => {
+    expect(await pickScope(fakeSession([]), "spc_named")).toBe("spc_named")
+    expect(await pickScope(fakeSession([{ id: "spc_1", name: "Lab" }]), undefined)).toBe("spc_1")
   })
 
-  it("asks for a space when the team has several", async () => {
+  it("asks for a scope when the team has several", async () => {
     const session = fakeSession([
       { id: "spc_1", name: "Lab" },
       { id: "spc_2", name: "Home" }
     ])
-    await expect(pickSpace(session, undefined)).rejects.toMatchObject({
+    await expect(pickScope(session, undefined)).rejects.toMatchObject({
       code: "usage",
-      message: "your team has several spaces: name one with --space, from Lab (spc_1), Home (spc_2)"
+      message: "your team has several scopes: name one with --scope, from Lab (spc_1), Home (spc_2)"
     })
   })
 
-  it("says to create a space when the team has none", async () => {
-    await expect(pickSpace(fakeSession([]), undefined)).rejects.toMatchObject({ code: "not_found" })
+  it("says to create a scope when the team has none", async () => {
+    await expect(pickScope(fakeSession([]), undefined)).rejects.toMatchObject({ code: "not_found" })
   })
 })
 
@@ -163,7 +163,7 @@ describe("makeSetup", () => {
       wifi: { ssid: "Home", passphrase: "pw" }
     })
     expect(created).toEqual([
-      { teamId: "team_1", createEnrollmentRequest: { spaceId: "spc_1", label: "qualithm deploy" } }
+      { teamId: "team_1", createEnrollmentRequest: { scopeId: "spc_1", label: "qualithm deploy" } }
     ])
   })
 

@@ -26,7 +26,7 @@ const TEAM = {
 
 const STATE = {
   deviceId: "dev_1",
-  spaceId: "spc_1",
+  scopeId: "spc_1",
   online: true,
   lastSeenAt: "2026-10-20T10:00:00.000Z",
   metrics: {}

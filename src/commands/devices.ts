@@ -30,16 +30,16 @@ export const deviceCommands: readonly Command[] = [
     path: ["device", "list"],
     aliases: ["ls"],
     tool: listDevices,
-    options: { space: { type: "string" }, page: { type: "string" }, limit: { type: "string" } },
+    options: { scope: { type: "string" }, page: { type: "string" }, limit: { type: "string" } },
     toInput: ({ values }: ParsedArgs): Record<string, unknown> => ({
-      spaceId: stringOption(values, "space"),
+      scopeId: stringOption(values, "scope"),
       page: intOption(values, "page"),
       limit: intOption(values, "limit")
     }),
     human: (data: unknown): string =>
       table([
-        ["ID", "NAME", "SPACE", "SPACE-NAME"],
-        ...(data as DevicePage).items.map((d) => [d.id, dash(d.name), d.spaceId, dash(d.spaceName)])
+        ["ID", "NAME", "SCOPE"],
+        ...(data as DevicePage).items.map((d) => [d.id, dash(d.name), d.scopeId])
       ])
   },
   {
@@ -55,8 +55,7 @@ export const deviceCommands: readonly Command[] = [
       return table([
         ["id", device.id],
         ["name", dash(device.name)],
-        ["space", device.spaceId],
-        ["spaceName", dash(device.spaceName)],
+        ["scope", device.scopeId],
         ["parkedAt", when(device.parkedAt)],
         ["createdAt", when(device.createdAt)]
       ])
@@ -66,17 +65,17 @@ export const deviceCommands: readonly Command[] = [
     path: ["device", "create"],
     aliases: ["new"],
     tool: createDevice,
-    options: { space: { type: "string" } },
+    options: { scope: { type: "string" } },
     toInput: ({ values }: ParsedArgs): Record<string, unknown> => {
-      const spaceId = stringOption(values, "space")
-      if (spaceId === undefined) {
-        throw new CliError("--space is required")
+      const scopeId = stringOption(values, "scope")
+      if (scopeId === undefined) {
+        throw new CliError("--scope is required")
       }
-      return { spaceId }
+      return { scopeId }
     },
     human: (data: unknown): string => {
       const device = data as Device
-      return `device ${device.id} (${device.name}) created in space ${device.spaceId}\n`
+      return `device ${device.id} (${device.name}) created in scope ${device.scopeId}\n`
     }
   },
   {
@@ -85,7 +84,7 @@ export const deviceCommands: readonly Command[] = [
     tool: updateDevice,
     options: {
       name: { type: "string" },
-      space: { type: "string" },
+      scope: { type: "string" },
       park: { type: "boolean" },
       unpark: { type: "boolean" }
     },
@@ -94,11 +93,11 @@ export const deviceCommands: readonly Command[] = [
       const input = {
         deviceId,
         name: stringOption(values, "name"),
-        spaceId: stringOption(values, "space"),
+        scopeId: stringOption(values, "scope"),
         parked: parkedOption(values)
       }
-      if (input.name === undefined && input.spaceId === undefined && input.parked === undefined) {
-        throw new CliError("set --name, --space, --park or --unpark")
+      if (input.name === undefined && input.scopeId === undefined && input.parked === undefined) {
+        throw new CliError("set --name, --scope, --park or --unpark")
       }
       return input
     },

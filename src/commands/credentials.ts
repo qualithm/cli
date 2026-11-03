@@ -1,4 +1,4 @@
-import type { Credential, CredentialSecret, IssuedCertificate } from "@qualithm/platform"
+import type { CredentialPage, CredentialSecret, IssuedCertificate } from "@qualithm/platform"
 import { z } from "zod"
 
 import { CliError } from "../envelope.ts"
@@ -46,7 +46,7 @@ export const credentialCommands: readonly Command[] = [
     human: (data: unknown): string =>
       table([
         ["ID", "KIND", "LABEL", "STATUS", "EXPIRES"],
-        ...(data as Credential[]).map((c) => [
+        ...(data as CredentialPage).items.map((c) => [
           c.id,
           c.kind,
           dash(c.label),

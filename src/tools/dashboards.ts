@@ -29,18 +29,18 @@ export const listDashboards = defineTool({
   }
 })
 
-/** Creates a dashboard, team-wide or scoped to a space. */
+/** Creates a dashboard, team-wide or bound to one scope. */
 export const createDashboard = defineTool({
   name: "create_dashboard",
-  description: "Create a dashboard, optionally scoped to a space.",
+  description: "Create a dashboard, team-wide or bound to one scope.",
   mutating: true,
   input: {
     name: z.string().min(1).describe("dashboard name"),
-    spaceId: z
+    scopeId: z
       .string()
       .min(1)
       .optional()
-      .describe("id of the space to scope the dashboard to; omit for team-wide"),
+      .describe("id of the scope to bind the dashboard to; omit for team-wide"),
     payload: widgets("ordered widget array; omit for an empty dashboard"),
     ...dryRunInput
   },
@@ -50,7 +50,7 @@ export const createDashboard = defineTool({
       teamId,
       createDashboardRequest: {
         name: input.name,
-        ...(input.spaceId === undefined ? {} : { spaceId: input.spaceId }),
+        ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
         ...(input.payload === undefined
           ? {}
           : { payload: input.payload as unknown as DashboardWidget[] })
@@ -75,15 +75,15 @@ export const getDashboard = defineTool({
   }
 })
 
-/** Updates a dashboard's name, space or widgets; unset fields stay unchanged. */
+/** Updates a dashboard's name, scope or widgets; unset fields stay unchanged. */
 export const updateDashboard = defineTool({
   name: "update_dashboard",
-  description: "Update a dashboard's name, space, or widget layout.",
+  description: "Update a dashboard's name, scope, or widget layout.",
   mutating: true,
   input: {
     dashboardId: dashboardId("to update"),
     name: z.string().min(1).optional().describe("new dashboard name"),
-    spaceId: z.string().min(1).optional().describe("new space id to scope the dashboard to"),
+    scopeId: z.string().min(1).optional().describe("new scope id to bind the dashboard to"),
     payload: widgets("new ordered widget array"),
     ...dryRunInput
   },
@@ -94,7 +94,7 @@ export const updateDashboard = defineTool({
       dashboardId: input.dashboardId,
       updateDashboardRequest: {
         ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.spaceId === undefined ? {} : { spaceId: input.spaceId }),
+        ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
         ...(input.payload === undefined
           ? {}
           : { payload: input.payload as unknown as DashboardWidget[] })

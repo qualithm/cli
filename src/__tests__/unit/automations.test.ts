@@ -26,8 +26,7 @@ const PAYLOAD = {
 const AUTOMATION = {
   id: "auto_1",
   teamId: "team_1",
-  spaceId: null,
-  spaceName: null,
+  scopeId: null,
   name: "hourly",
   enabled: true,
   payload: PAYLOAD,
@@ -127,13 +126,13 @@ describe("automation tools", () => {
   })
 
   it("creates an automation from a payload", async () => {
-    const input = { name: "hourly", spaceId: "spc_1", payload: PAYLOAD }
+    const input = { name: "hourly", scopeId: "spc_1", payload: PAYLOAD }
     const { result, requests } = await call(createAutomation, input)
     expect(result).toMatchObject({ ok: true, data: { id: "auto_1" } })
     expect(requests.at(-1)).toMatchObject({
       method: "POST",
       path: "/v1/teams/team_1/automations",
-      body: { name: "hourly", spaceId: "spc_1", payload: PAYLOAD }
+      body: { name: "hourly", scopeId: "spc_1", payload: PAYLOAD }
     })
   })
 
@@ -189,7 +188,7 @@ describe("automation tools", () => {
       automationId: "auto_1",
       name: "daily",
       enabled: false,
-      spaceId: "spc_1",
+      scopeId: "spc_1",
       payload: PAYLOAD
     }
     const { result, requests } = await call(updateAutomation, input)
@@ -197,7 +196,7 @@ describe("automation tools", () => {
     expect(requests.at(-1)).toMatchObject({
       method: "PATCH",
       path: "/v1/teams/team_1/automations/auto_1",
-      body: { name: "daily", enabled: false, spaceId: "spc_1", payload: PAYLOAD }
+      body: { name: "daily", enabled: false, scopeId: "spc_1", payload: PAYLOAD }
     })
     const retemplate = { automationId: "auto_1", template: "tpl_1", params: { threshold: 1 } }
     const { requests: again } = await call(updateAutomation, retemplate)

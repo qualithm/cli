@@ -16,7 +16,7 @@ import {
   keychainWifi,
   makeSetup,
   pickNetwork,
-  pickSpace,
+  pickScope,
   type Provisioned,
   type WifiLookup,
   type WifiResolver
@@ -191,11 +191,11 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       input: {
         dir: z.string().min(1).describe("the project folder on this computer"),
         ...serialNumber,
-        spaceId: z
+        scopeId: z
           .string()
           .min(1)
           .optional()
-          .describe("the space a new board joins; needed only when the team has several"),
+          .describe("the scope a new board joins; needed only when the team has several"),
         wifiNetwork: z
           .string()
           .min(1)
@@ -228,26 +228,26 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
         let setup: Setup | undefined
         let provisioned: Provisioned | undefined
         if (!state.credential && virtual) {
-          const spaceId = await pickSpace(session, input.spaceId).catch((error: unknown) => {
+          const scopeId = await pickScope(session, input.scopeId).catch((error: unknown) => {
             throw claimNeedsPlatform(error)
           })
-          provisioned = { spaceId }
+          provisioned = { scopeId }
           if (!dryRun) {
-            setup = await makeSetup(session, spaceId, undefined)
+            setup = await makeSetup(session, scopeId, undefined)
           }
         } else if (!state.credential) {
           // A board with no credential gets a fresh code each deploy, so an expired one never strands it.
-          const spaceId = await pickSpace(session, input.spaceId).catch((error: unknown) => {
+          const scopeId = await pickScope(session, input.scopeId).catch((error: unknown) => {
             throw claimNeedsPlatform(error)
           })
           const keep = input.wifiNetwork === undefined ? state.wifiNetwork : undefined
           if (dryRun) {
             const network = keep ?? (await pickNetwork(input.wifiNetwork, options.lookup))
-            provisioned = { spaceId, wifiNetwork: network }
+            provisioned = { scopeId, wifiNetwork: network }
           } else {
             const wifi = keep === undefined ? await resolveWifi(input.wifiNetwork) : undefined
-            setup = await makeSetup(session, spaceId, wifi)
-            provisioned = { spaceId, wifiNetwork: wifi?.ssid ?? keep ?? "" }
+            setup = await makeSetup(session, scopeId, wifi)
+            provisioned = { scopeId, wifiNetwork: wifi?.ssid ?? keep ?? "" }
           }
         }
         const result = (await client.send({

@@ -240,7 +240,7 @@ describe("deploy provisioning", () => {
     ])
     expect(result).toMatchObject({
       ok: true,
-      data: { provisioned: { spaceId: "spc_1", wifiNetwork: "Home" } }
+      data: { provisioned: { scopeId: "spc_1", wifiNetwork: "Home" } }
     })
     expect(JSON.stringify(result)).not.toContain("pw")
     expect(JSON.stringify(result)).not.toContain("qmc_new")
@@ -260,17 +260,17 @@ describe("deploy provisioning", () => {
     expect(result).toMatchObject({ data: { provisioned: { wifiNetwork: "Cafe" } } })
   })
 
-  it("uses a named network and space", async () => {
+  it("uses a named network and scope", async () => {
     const ops = fakeOps()
     ops.state = { blank: false, credential: false, claimCode: false, wifiNetwork: "Cafe" }
     const session = fakeSession([])
     const result = await callTool(deployTool(clientOf(ops)), () => session, {
       dir: await projectDir(),
-      spaceId: "spc_named",
+      scopeId: "spc_named",
       wifiNetwork: "Other"
     })
     expect(result).toMatchObject({
-      data: { provisioned: { spaceId: "spc_named", wifiNetwork: "Other" } }
+      data: { provisioned: { scopeId: "spc_named", wifiNetwork: "Other" } }
     })
   })
 
@@ -286,7 +286,7 @@ describe("deploy provisioning", () => {
     expect(result).toMatchObject({
       ok: true,
       dryRun: true,
-      data: { provisioned: { spaceId: "spc_1", wifiNetwork: "Home" } }
+      data: { provisioned: { scopeId: "spc_1", wifiNetwork: "Home" } }
     })
     expect(created).toEqual([])
     expect(ops.setups).toEqual([undefined])
@@ -308,10 +308,10 @@ describe("deploy provisioning", () => {
       code: "auth",
       message: "the board isn't claimed yet, and claiming it needs the platform: no session"
     })
-    const spaceless = await callTool(deployTool(clientOf(ops)), () => fakeSession([]), {
+    const scopeless = await callTool(deployTool(clientOf(ops)), () => fakeSession([]), {
       dir: await projectDir()
     })
-    expect(spaceless).toMatchObject({ ok: false, code: "not_found" })
+    expect(scopeless).toMatchObject({ ok: false, code: "not_found" })
   })
 
   it("asks at the terminal through qualithm deploy, and prints what it chose", async () => {
@@ -331,7 +331,7 @@ describe("deploy provisioning", () => {
       }
     })
     const dir = await projectDir()
-    expect(await run(["deploy", dir, "--wifi", "Named", "--space", "spc_9"], c)).toBe(0)
+    expect(await run(["deploy", dir, "--wifi", "Named", "--scope", "spc_9"], c)).toBe(0)
     expect(ops.setups).toEqual([
       {
         provisioningUrl: "https://api.example.com",
@@ -339,7 +339,7 @@ describe("deploy provisioning", () => {
         wifi: { ssid: "Named", passphrase: "typed-pass" }
       }
     ])
-    expect(c.out()).toContain("set the board to claim itself into space spc_9 on Wi-Fi Named")
+    expect(c.out()).toContain("set the board to claim itself into scope spc_9 on Wi-Fi Named")
   })
 })
 
@@ -533,7 +533,7 @@ describe("virtual deploy", () => {
     expect(ops.setups).toEqual([
       { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code" }
     ])
-    expect(result).toMatchObject({ ok: true, data: { provisioned: { spaceId: "spc_1" } } })
+    expect(result).toMatchObject({ ok: true, data: { provisioned: { scopeId: "spc_1" } } })
     expect(result.data).not.toHaveProperty("provisioned.wifiNetwork")
     expect(created).toHaveLength(1)
   })
@@ -547,7 +547,7 @@ describe("virtual deploy", () => {
       () => fakeSession([{ id: "spc_1", name: "Lab" }], created),
       { dir: await projectDir(), virtual: true, dryRun: true }
     )
-    expect(result).toMatchObject({ ok: true, data: { provisioned: { spaceId: "spc_1" } } })
+    expect(result).toMatchObject({ ok: true, data: { provisioned: { scopeId: "spc_1" } } })
     expect(created).toEqual([])
     expect(ops.setups).toEqual([undefined])
   })
@@ -603,7 +603,7 @@ describe("virtual deploy", () => {
     expect(await run(["deploy", dir, "--virtual"], c)).toBe(0)
     expect(c.out()).toBe(
       [
-        "set the virtual device to claim itself into space spc_1",
+        "set the virtual device to claim itself into scope spc_1",
         "write  /main.py",
         `deployed to ${serial} on /data/virtual/x: 1 written, 0 removed, 0 unchanged; restarted`,
         `follow its output: qualithm board logs --serial ${serial} -f`,

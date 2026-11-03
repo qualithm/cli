@@ -16,7 +16,7 @@ export type DeviceDriver = {
 
 /** Eval settings; every field has a production default. */
 export type EvalConfig = {
-  /** The zone for a new space when the team has none; empty asks list_zones for an open one. */
+  /** The zone for a new scope when the team has none; empty asks list_zones for an open one. */
   zone?: string
   /** How long to wait for the published reading to read back. */
   verifyTimeoutMs?: number
@@ -45,7 +45,7 @@ class StepError extends Error {
 }
 
 /**
- * Runs the agent path end to end: find or create a space, create an enrollment, claim a device,
+ * Runs the agent path end to end: find or create a scope, create an enrollment, claim a device,
  * publish a reading, read it back, then delete what it made. Never throws: each failure is a
  * failed step in the report.
  *
@@ -90,22 +90,22 @@ export async function runEval(
   const finish = (): Report => ({ ok: steps.every((s) => s.ok), startedAt, steps, friction })
 
   // Steps fill these in; an object, so the checks after each step see what its closure set.
-  const state = { spaceId: "", needsSpace: false, code: "", enrollmentId: "", deviceId: "" }
-  const listed = await step("list_spaces", async () => {
-    const page = (await tools("list_spaces", {})) as Page
+  const state = { scopeId: "", needsScope: false, code: "", enrollmentId: "", deviceId: "" }
+  const listed = await step("list_scopes", async () => {
+    const page = (await tools("list_scopes", {})) as Page
     const first = page.items?.[0]?.id
     if (first === undefined) {
-      state.needsSpace = true
-      return "no spaces yet"
+      state.needsScope = true
+      return "no scopes yet"
     }
-    state.spaceId = first
-    return `space ${first}`
+    state.scopeId = first
+    return `scope ${first}`
   })
   if (!listed) {
     return finish()
   }
 
-  if (state.needsSpace) {
+  if (state.needsScope) {
     let zone = config.zone ?? ""
     if (zone === "") {
       const found = await step("list_zones", async () => {
@@ -121,10 +121,10 @@ export async function runEval(
         return finish()
       }
     }
-    const created = await step("create_space", async () => {
-      const space = (await tools("create_space", { zone })) as { id?: string }
-      state.spaceId = space.id ?? ""
-      return `space ${state.spaceId}`
+    const created = await step("create_scope", async () => {
+      const scope = (await tools("create_scope", { name: "agent-eval", zone })) as { id?: string }
+      state.scopeId = scope.id ?? ""
+      return `scope ${state.scopeId}`
     })
     if (!created) {
       return finish()
@@ -133,7 +133,7 @@ export async function runEval(
 
   const enrolled = await step("create_enrollment", async () => {
     const out = (await tools("create_enrollment", {
-      spaceId: state.spaceId,
+      scopeId: state.scopeId,
       label: "agent-eval",
       expiresInMinutes: 15
     })) as EnrollmentCode
