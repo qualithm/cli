@@ -1,21 +1,33 @@
-import { DevicesApi } from "@qualithm/platform"
+import { DevicesApi, ScopesApi } from "@qualithm/platform"
 import { z } from "zod"
 
 import { CliError } from "../envelope.ts"
 import { defineTool, dryRunInput, pageInput } from "./tool.ts"
 
-/** Lists the team's devices, optionally only one space's. */
+/** Lists the team's devices, optionally only one scope's and the scopes under it. */
 export const listDevices = defineTool({
   name: "list_devices",
-  description: "List the team's devices, optionally only those in one space.",
+  description:
+    "List the team's devices, optionally only those in one scope and every scope under it.",
   mutating: false,
   input: {
-    spaceId: z.string().min(1).optional().describe("only the devices in this space"),
+    scopeId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("only the devices in this scope and every scope under it"),
     ...pageInput
   },
   run: async (session, input) => {
     const teamId = await session.teamId()
-    const { data } = await session.client.api(DevicesApi).listDevices({ teamId, ...input })
+    const { scopeId, ...page } = input
+    if (scopeId !== undefined) {
+      const { data } = await session.client
+        .api(ScopesApi)
+        .listScopeDevices({ teamId, scopeId, ...page })
+      return data
+    }
+    const { data } = await session.client.api(DevicesApi).listDevices({ teamId, ...page })
     return data
   }
 })
@@ -35,33 +47,33 @@ export const getDevice = defineTool({
   }
 })
 
-/** Creates a device in a space. */
+/** Creates a device in a scope. */
 export const createDevice = defineTool({
   name: "create_device",
-  description: "Create a device in a space.",
+  description: "Create a device in a scope.",
   mutating: true,
   input: {
-    spaceId: z.string().min(1).describe("id of the space to create the device in"),
+    scopeId: z.string().min(1).describe("id of the scope to create the device in"),
     ...dryRunInput
   },
   run: async (session, input) => {
     const teamId = await session.teamId()
     const { data } = await session.client
       .api(DevicesApi)
-      .createDevice({ teamId, createDeviceRequest: { spaceId: input.spaceId } })
+      .createDevice({ teamId, createDeviceRequest: { scopeId: input.scopeId } })
     return data
   }
 })
 
-/** Renames a device, moves it to another space, or parks or unparks it. */
+/** Renames a device, moves it to another scope, or parks or unparks it. */
 export const updateDevice = defineTool({
   name: "update_device",
-  description: "Update a device's name or space, or park or unpark it.",
+  description: "Update a device's name or scope, or park or unpark it.",
   mutating: true,
   input: {
     deviceId: z.string().min(1).describe("id of the device to update"),
     name: z.string().min(1).optional().describe("new device name"),
-    spaceId: z.string().min(1).optional().describe("new space id to move the device into"),
+    scopeId: z.string().min(1).optional().describe("new scope id to move the device into"),
     parked: z
       .boolean()
       .optional()
@@ -71,9 +83,9 @@ export const updateDevice = defineTool({
     ...dryRunInput
   },
   run: async (session, input) => {
-    const { deviceId, name, spaceId, parked } = input
-    if (name === undefined && spaceId === undefined && parked === undefined) {
-      throw new CliError("set name, spaceId or parked")
+    const { deviceId, name, scopeId, parked } = input
+    if (name === undefined && scopeId === undefined && parked === undefined) {
+      throw new CliError("set name, scopeId or parked")
     }
     const teamId = await session.teamId()
     await session.client.api(DevicesApi).updateDevice({
@@ -81,7 +93,7 @@ export const updateDevice = defineTool({
       deviceId,
       updateDeviceRequest: {
         ...(name === undefined ? {} : { name }),
-        ...(spaceId === undefined ? {} : { spaceId }),
+        ...(scopeId === undefined ? {} : { scopeId }),
         ...(parked === undefined ? {} : { parked })
       }
     })

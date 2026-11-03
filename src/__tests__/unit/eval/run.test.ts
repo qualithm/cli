@@ -36,7 +36,7 @@ function tools(
 }
 
 const HAPPY: Record<string, unknown> = {
-  list_spaces: { items: [{ id: "spc_1" }] },
+  list_scopes: { items: [{ id: "spc_1" }] },
   create_enrollment: { enrollment: { id: "enr_1" }, code: "QM-1" },
   get_telemetry: { items: [{ ts: NOW, value: VALUE }] },
   delete_device: undefined,
@@ -63,7 +63,7 @@ describe("runEval", () => {
     const report = await runEval(t.call, d, clock())
     expect(report.ok).toBe(true)
     expect(report.steps.map((s) => s.name)).toEqual([
-      "list_spaces",
+      "list_scopes",
       "create_enrollment",
       "claim",
       "connect_publish",
@@ -72,7 +72,7 @@ describe("runEval", () => {
     expect(report.friction).toEqual([])
     expect(d.published).toEqual([{ metric: "agent_eval", value: VALUE, ts: NOW }])
     expect(t.calls.find((c) => c.name === "create_enrollment")?.args).toEqual({
-      spaceId: "spc_1",
+      scopeId: "spc_1",
       label: "agent-eval",
       expiresInMinutes: 15
     })
@@ -85,40 +85,43 @@ describe("runEval", () => {
     expect(t.calls.at(-1)).toEqual({ name: "delete_device", args: { deviceId: "dev_1" } })
   })
 
-  it("creates a space in the first open zone when the team has none", async () => {
+  it("creates a scope in the first open zone when the team has none", async () => {
     const t = tools({
       ...HAPPY,
-      list_spaces: { items: [] },
+      list_scopes: { items: [] },
       list_zones: {
         zones: [
           { id: "de-fra-a", open: false },
           { id: "sg-sin-a", open: true }
         ]
       },
-      create_space: { id: "spc_new" }
+      create_scope: { id: "spc_new" }
     })
     const report = await runEval(t.call, device(), clock())
     expect(report.ok).toBe(true)
-    expect(t.calls.find((c) => c.name === "create_space")?.args).toEqual({ zone: "sg-sin-a" })
-    expect(report.steps[2]).toMatchObject({ name: "create_space", detail: "space spc_new" })
+    expect(t.calls.find((c) => c.name === "create_scope")?.args).toEqual({
+      name: "agent-eval",
+      zone: "sg-sin-a"
+    })
+    expect(report.steps[2]).toMatchObject({ name: "create_scope", detail: "scope spc_new" })
   })
 
   it("uses the configured zone without asking", async () => {
-    const t = tools({ ...HAPPY, list_spaces: {}, create_space: {} })
+    const t = tools({ ...HAPPY, list_scopes: {}, create_scope: {} })
     const report = await runEval(t.call, device(), { ...clock(), zone: "de-fra-a" })
     expect(t.calls.some((c) => c.name === "list_zones")).toBe(false)
-    expect(report.steps[1]).toMatchObject({ name: "create_space", ok: true, detail: "space " })
+    expect(report.steps[1]).toMatchObject({ name: "create_scope", ok: true, detail: "scope " })
   })
 
   it.each([
-    ["list_spaces", { list_spaces: new Error("list_spaces: auth: no") }],
-    ["list_zones", { list_spaces: { items: [] }, list_zones: { zones: [] } }],
+    ["list_scopes", { list_scopes: new Error("list_scopes: auth: no") }],
+    ["list_zones", { list_scopes: { items: [] }, list_zones: { zones: [] } }],
     [
-      "create_space",
+      "create_scope",
       {
-        list_spaces: { items: [] },
+        list_scopes: { items: [] },
         list_zones: { zones: [{ id: "z", open: true }] },
-        create_space: new Error("boom")
+        create_scope: new Error("boom")
       }
     ],
     ["create_enrollment", { create_enrollment: { enrollment: { id: "enr_1" } } }]
@@ -214,7 +217,7 @@ describe("renderReport", () => {
         ok: false,
         startedAt: "2026-10-27T00:00:00.000Z",
         steps: [
-          { name: "list_spaces", ok: true, durationMs: 12, detail: "space spc_1" },
+          { name: "list_scopes", ok: true, durationMs: 12, detail: "scope spc_1" },
           { name: "claim", ok: false, durationMs: 3, detail: "" }
         ],
         friction: [{ step: "cleanup", missing: "delete_device failed" }]
@@ -224,7 +227,7 @@ describe("renderReport", () => {
         "agent-eval FAIL (2026-10-27T00:00:00.000Z)",
         "",
         "Steps:",
-        "- [ok] list_spaces (12ms): space spc_1",
+        "- [ok] list_scopes (12ms): scope spc_1",
         "- [FAIL] claim (3ms)",
         "",
         "Friction log (steps the agent had to supply information the surfaces did not provide):",

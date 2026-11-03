@@ -1,4 +1,4 @@
-import { EnrollmentsApi, SpacesApi } from "@qualithm/platform"
+import { EnrollmentsApi, ScopesApi } from "@qualithm/platform"
 
 import type { Setup } from "../board/sync.ts"
 import { knownNetworks, savedPassphrase, type WifiDetails, type WifiHost } from "../board/wifi.ts"
@@ -103,36 +103,36 @@ export function terminalWifi(ask: Ask, lookup: WifiLookup = {}): WifiResolver {
 
 /** What provisioning chose, for the deploy's result. The claim code and passphrase stay out. */
 export type Provisioned = {
-  spaceId: string
+  scopeId: string
   /** The network the board will join; absent for a virtual device, which uses the host's. */
   wifiNetwork?: string
 }
 
 /**
- * The space a new board joins: the one named, else the team's only space.
+ * The scope a new board joins: the one named, else the team's only scope.
  *
  * @param session - the platform
- * @param spaceId - the space named, if any
- * @returns the space id
- * @throws {CliError} when none is named and the team has no space, or several
+ * @param scopeId - the scope named, if any
+ * @returns the scope id
+ * @throws {CliError} when none is named and the team has no scope, or several
  */
-export async function pickSpace(session: Session, spaceId: string | undefined): Promise<string> {
-  if (spaceId !== undefined) {
-    return spaceId
+export async function pickScope(session: Session, scopeId: string | undefined): Promise<string> {
+  if (scopeId !== undefined) {
+    return scopeId
   }
   const teamId = await session.teamId()
-  const { data } = await session.client.api(SpacesApi).listSpaces({ teamId, limit: 100 })
+  const { data } = await session.client.api(ScopesApi).listScopes({ teamId, limit: 100 })
   const [only, ...others] = data.items
   if (only === undefined) {
     throw new CliError(
-      "your team has no space for the board yet: create one in the app, then deploy",
+      "your team has no scope for the board yet: create one in the app, then deploy",
       "not_found"
     )
   }
   if (others.length > 0) {
     const names = data.items.map((s) => `${s.name} (${s.id})`).join(", ")
     throw new CliError(
-      `your team has several spaces: name one with --space, from ${names}`,
+      `your team has several scopes: name one with --scope, from ${names}`,
       "usage"
     )
   }
@@ -143,19 +143,19 @@ export async function pickSpace(session: Session, spaceId: string | undefined): 
  * Creates a claim code for a new board and puts the setup file together.
  *
  * @param session - the platform
- * @param spaceId - the space the board joins
+ * @param scopeId - the scope the board joins
  * @param wifi - the network and passphrase, or undefined to keep the board's own
  * @returns the setup to write
  */
 export async function makeSetup(
   session: Session,
-  spaceId: string,
+  scopeId: string,
   wifi: WifiDetails | undefined
 ): Promise<Setup> {
   const teamId = await session.teamId()
   const { data } = await session.client.api(EnrollmentsApi).createEnrollment({
     teamId,
-    createEnrollmentRequest: { spaceId, label: "qualithm deploy" }
+    createEnrollmentRequest: { scopeId, label: "qualithm deploy" }
   })
   return {
     provisioningUrl: session.baseUrl,

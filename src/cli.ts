@@ -9,7 +9,7 @@ import type { Command, ToolCommand } from "./commands/command.ts"
 import { credentialCommands } from "./commands/credentials.ts"
 import { deviceCommands } from "./commands/devices.ts"
 import { enrollmentCommands } from "./commands/enrollments.ts"
-import { spaceCommands } from "./commands/spaces.ts"
+import { scopeCommands } from "./commands/scopes.ts"
 import { tokenCommands } from "./commands/tokens.ts"
 import { type CoreIo, runCore } from "./core/command.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
@@ -40,7 +40,7 @@ export const COMMANDS: readonly Command[] = [
   ...credentialCommands,
   ...deviceCommands,
   ...enrollmentCommands,
-  ...spaceCommands,
+  ...scopeCommands,
   ...tokenCommands,
   ...applyCommands
 ]
@@ -50,7 +50,7 @@ const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
   credentials: "credential",
   devices: "device",
   enrollments: "enrollment",
-  spaces: "space",
+  scopes: "scope",
   tokens: "token",
   "api-token": "token"
 }
@@ -86,14 +86,14 @@ Resources and verbs:
   credential list | mint | cert | rotate | revoke
   device     list | get <id> | create | update <id> | delete <id>
   enrollment list | create | revoke <id>
-  space      list | get <id> | create | update <id> | delete <id>
+  scope      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
   board      list | flash | reset | logs | console
   apply      <manifest.yaml>            idempotent device-as-code reconcile
   version                               print the CLI version
 
 Examples:
-  qualithm enrollment create --space spc_123 --label lab-floor-2
+  qualithm enrollment create --scope spc_123 --label lab-floor-2
   qualithm device list --json
   qualithm credential mint --device dev_123 --json
   qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
