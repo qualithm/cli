@@ -124,7 +124,10 @@ export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
   "PATCH /v1/teams/team_1/scopes/spc_1": { status: 204 },
   "DELETE /v1/teams/team_1/scopes/spc_1": { status: 204 },
   "GET /v1/teams/team_1/scopes/spc_1/devices": { status: 200, body: page([DEVICE]) },
-  "GET /v1/teams/team_1/devices/dev_1/credentials": { status: 200, body: { data: [CREDENTIAL] } },
+  "GET /v1/teams/team_1/devices/dev_1/credentials": {
+    status: 200,
+    body: { data: { items: [CREDENTIAL], current: 1, last: 1, total: 1, limit: 20 } }
+  },
   "POST /v1/teams/team_1/devices/dev_1/credentials": {
     status: 201,
     body: { data: { credential: CREDENTIAL, secret: "qmd_secret" } }

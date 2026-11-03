@@ -37,7 +37,10 @@ const ROUTES = {
     status: 202,
     body: { data: { id: "cmd_1", duplicate: false } }
   },
-  "GET /v1/teams/team_1/devices/dev_1/capabilities": { status: 200, body: { data: [CAPABILITY] } }
+  "GET /v1/teams/team_1/devices/dev_1/capabilities": {
+    status: 200,
+    body: { data: { items: [CAPABILITY], current: 1, last: 1, total: 1, limit: 20 } }
+  }
 }
 
 function platform(): ReturnType<typeof fakePlatform> & {
@@ -129,7 +132,7 @@ describe("device command tools", () => {
   it("lists a device's capabilities", async () => {
     const { newSession, requests } = platform()
     const result = await callTool(getDeviceCapabilities, newSession, { deviceId: "dev_1" })
-    expect(result).toMatchObject({ ok: true, data: [{ key: "power", type: "onoff" }] })
+    expect(result).toMatchObject({ ok: true, data: { items: [{ key: "power", type: "onoff" }] } })
     expect(requests.at(-1)?.path).toBe("/v1/teams/team_1/devices/dev_1/capabilities")
   })
 })
