@@ -2,10 +2,19 @@ import type { CliIo } from "../../cli.ts"
 import type { FetchAPI } from "../../platform.ts"
 
 /** One request the fake platform received. */
-export type Recorded = { method: string; path: string; userAgent: string | null; body?: unknown }
+export type Recorded = {
+  method: string
+  path: string
+  search: string
+  userAgent: string | null
+  body?: unknown
+}
 
 /** A route's reply: a status and a JSON body. */
 export type Reply = { status: number; body?: unknown }
+
+/** A route's reply, or its replies in order. */
+export type Route = Reply | readonly Reply[]
 
 const team = (id: string): Record<string, unknown> => ({
   id,
@@ -31,7 +40,7 @@ export const TOKEN = {
 }
 
 const page = (items: unknown[]): Record<string, unknown> => ({
-  data: { items, current: 1, last: 1, total: items.length, limit: 20 }
+  data: { items, current: 1, last: 1, total: items.length, limit: 20, nextCursor: null }
 })
 
 /** The default routes: one team, one token. */
@@ -165,14 +174,16 @@ export const DEFAULT_ROUTES: Readonly<Record<string, Reply>> = {
 /**
  * A `fetch` that answers from a route table and records every request.
  *
- * @param routes - replies by `METHOD /path`; unknown routes get a 404 envelope
+ * @param routes - replies by `METHOD /path`, or a list answered in order with the last repeated;
+ *   unknown routes get a 404 envelope
  * @returns the `fetch` and the requests it saw
  */
-export function fakePlatform(routes: Readonly<Record<string, Reply>> = DEFAULT_ROUTES): {
+export function fakePlatform(routes: Readonly<Record<string, Route>> = DEFAULT_ROUTES): {
   fetch: FetchAPI
   requests: Recorded[]
 } {
   const requests: Recorded[] = []
+  const calls = new Map<string, number>()
   const fetch: FetchAPI = async (input, init) => {
     await Promise.resolve()
     const url = new URL(input instanceof Request ? input.url : input.toString())
@@ -181,12 +192,17 @@ export function fakePlatform(routes: Readonly<Record<string, Reply>> = DEFAULT_R
     requests.push({
       method,
       path: url.pathname,
+      search: url.search,
       userAgent: headers.get("User-Agent"),
       ...(typeof init?.body === "string" && init.body !== ""
         ? { body: JSON.parse(init.body) as unknown }
         : {})
     })
-    const reply = routes[`${method} ${url.pathname}`] ?? {
+    const key = `${method} ${url.pathname}`
+    const route = routes[key]
+    const call = calls.get(key) ?? 0
+    calls.set(key, call + 1)
+    const reply = (Array.isArray(route) ? route[Math.min(call, route.length - 1)] : route) ?? {
       status: 404,
       body: { message: "not found", code: "not_found" }
     }
@@ -215,7 +231,7 @@ export type Captured = {
  */
 export function capture(
   extra: Partial<CliIo> = {},
-  routes: Readonly<Record<string, Reply>> = DEFAULT_ROUTES
+  routes: Readonly<Record<string, Route>> = DEFAULT_ROUTES
 ): Captured {
   let out = ""
   let err = ""

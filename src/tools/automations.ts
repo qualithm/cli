@@ -55,7 +55,7 @@ export const listAutomations = defineTool({
     const teamId = await session.teamId()
     const { data } = await session.client.api(AutomationsApi).listAutomations({
       teamId,
-      ...(input.page === undefined ? {} : { page: input.page }),
+      ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
       ...(input.limit === undefined ? {} : { limit: input.limit })
     })
     return data
@@ -198,7 +198,7 @@ export const listAutomationRuns = defineTool({
     const { data } = await session.client.api(AutomationsApi).listAutomationRuns({
       teamId,
       automationId: input.automationId,
-      ...(input.page === undefined ? {} : { page: input.page }),
+      ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
       ...(input.limit === undefined ? {} : { limit: input.limit })
     })
     return data

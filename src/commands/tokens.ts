@@ -2,7 +2,7 @@ import type { ApiTokenPage } from "@qualithm/platform"
 
 import { dash, table, when } from "../table.ts"
 import { listApiTokens, revokeApiToken } from "../tools/tokens.ts"
-import { type Command, intOption, requirePositional } from "./command.ts"
+import { type Command, intOption, requirePositional, stringOption } from "./command.ts"
 
 /** `qualithm token …`: list and revoke member API tokens. */
 export const tokenCommands: readonly Command[] = [
@@ -10,9 +10,9 @@ export const tokenCommands: readonly Command[] = [
     path: ["token", "list"],
     aliases: ["ls"],
     tool: listApiTokens,
-    options: { page: { type: "string" }, limit: { type: "string" } },
+    options: { cursor: { type: "string" }, limit: { type: "string" } },
     toInput: ({ values }) => ({
-      page: intOption(values, "page"),
+      cursor: stringOption(values, "cursor"),
       limit: intOption(values, "limit")
     }),
     human: (data: unknown): string => {

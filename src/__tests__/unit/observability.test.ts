@@ -238,9 +238,9 @@ describe("get_usage", () => {
 describe("get_audit_log", () => {
   it("lists the team's audit events", async () => {
     const { newSession, urls } = platform()
-    const result = await callTool(getAuditLog, newSession, { page: 2, limit: 10 })
+    const result = await callTool(getAuditLog, newSession, { cursor: "cur_2", limit: 10 })
     expect(result).toMatchObject({ ok: true, data: { items: [{ id: "aud_1" }] } })
     expect(urls.at(-1)?.pathname).toBe("/v1/teams/team_1/audit-events")
-    expect(urls.at(-1)?.search).toBe("?page=2&limit=10")
+    expect(urls.at(-1)?.search).toBe("?limit=10&cursor=cur_2")
   })
 })

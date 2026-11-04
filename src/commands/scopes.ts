@@ -20,13 +20,13 @@ export const scopeCommands: readonly Command[] = [
     options: {
       zone: { type: "string" },
       parent: { type: "string" },
-      page: { type: "string" },
+      cursor: { type: "string" },
       limit: { type: "string" }
     },
     toInput: ({ values }: ParsedArgs): Record<string, unknown> => ({
       zone: stringOption(values, "zone"),
       parentId: stringOption(values, "parent"),
-      page: intOption(values, "page"),
+      cursor: stringOption(values, "cursor"),
       limit: intOption(values, "limit")
     }),
     human: (data: unknown): string =>
