@@ -1,7 +1,8 @@
-import { AutomationsApi, type CreateAutomationRequestPayload } from "@qualithm/platform"
+import { AutomationsApi } from "@qualithm/platform"
 import { z } from "zod"
 
 import { CliError } from "../envelope.ts"
+import { automationPayload } from "./definition.ts"
 import { defineTool, dryRunInput, pageInput, type Tool } from "./tool.ts"
 
 const automationId = (what: string): z.ZodString =>
@@ -10,7 +11,7 @@ const automationId = (what: string): z.ZodString =>
 const scopeId = (description: string): z.ZodOptional<z.ZodString> =>
   z.string().min(1).optional().describe(description)
 
-// The trigger and chain pass through as given; the platform validates their contents.
+// The SDK's models check the trigger and chain's fields; the platform validates their values.
 const payload = (
   description: string
 ): z.ZodOptional<
@@ -86,15 +87,14 @@ export const createAutomation = defineTool({
     if (input.payload === undefined && input.template === undefined) {
       throw new CliError("one of payload or template is required")
     }
+    const payload = input.payload === undefined ? undefined : automationPayload(input.payload)
     const teamId = await session.teamId()
     const { data } = await session.client.api(AutomationsApi).createAutomation({
       teamId,
       createAutomationRequest: {
         name: input.name,
         ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
-        ...(input.payload === undefined
-          ? {}
-          : { payload: input.payload as unknown as CreateAutomationRequestPayload }),
+        ...(payload === undefined ? {} : { payload }),
         ...(input.template === undefined ? {} : { template: input.template }),
         ...(input.params === undefined ? {} : { params: input.params })
       }
@@ -139,6 +139,7 @@ export const updateAutomation = defineTool({
   },
   run: async (session, input) => {
     exclusive(input)
+    const payload = input.payload === undefined ? undefined : automationPayload(input.payload)
     const teamId = await session.teamId()
     const { data } = await session.client.api(AutomationsApi).updateAutomation({
       teamId,
@@ -147,9 +148,7 @@ export const updateAutomation = defineTool({
         ...(input.name === undefined ? {} : { name: input.name }),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
         ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
-        ...(input.payload === undefined
-          ? {}
-          : { payload: input.payload as unknown as CreateAutomationRequestPayload }),
+        ...(payload === undefined ? {} : { payload }),
         ...(input.template === undefined ? {} : { template: input.template }),
         ...(input.params === undefined ? {} : { params: input.params })
       }
