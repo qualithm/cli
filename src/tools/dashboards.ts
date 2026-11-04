@@ -1,12 +1,13 @@
-import { DashboardsApi, type DashboardWidget } from "@qualithm/platform"
+import { DashboardsApi } from "@qualithm/platform"
 import { z } from "zod"
 
+import { dashboardWidgets } from "./definition.ts"
 import { defineTool, dryRunInput, pageInput, type Tool } from "./tool.ts"
 
 const dashboardId = (what: string): z.ZodString =>
   z.string().min(1).describe(`id of the dashboard ${what}`)
 
-// The widget array passes through as given; the platform validates each widget.
+// The SDK's models check each widget's fields; the platform validates their values.
 const widgets = (
   description: string
 ): z.ZodOptional<z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>> =>
@@ -45,15 +46,14 @@ export const createDashboard = defineTool({
     ...dryRunInput
   },
   run: async (session, input) => {
+    const payload = input.payload === undefined ? undefined : dashboardWidgets(input.payload)
     const teamId = await session.teamId()
     const { data } = await session.client.api(DashboardsApi).createDashboard({
       teamId,
       createDashboardRequest: {
         name: input.name,
         ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
-        ...(input.payload === undefined
-          ? {}
-          : { payload: input.payload as unknown as DashboardWidget[] })
+        ...(payload === undefined ? {} : { payload })
       }
     })
     return data
@@ -88,6 +88,7 @@ export const updateDashboard = defineTool({
     ...dryRunInput
   },
   run: async (session, input) => {
+    const payload = input.payload === undefined ? undefined : dashboardWidgets(input.payload)
     const teamId = await session.teamId()
     const { data } = await session.client.api(DashboardsApi).updateDashboard({
       teamId,
@@ -95,9 +96,7 @@ export const updateDashboard = defineTool({
       updateDashboardRequest: {
         ...(input.name === undefined ? {} : { name: input.name }),
         ...(input.scopeId === undefined ? {} : { scopeId: input.scopeId }),
-        ...(input.payload === undefined
-          ? {}
-          : { payload: input.payload as unknown as DashboardWidget[] })
+        ...(payload === undefined ? {} : { payload })
       }
     })
     return data

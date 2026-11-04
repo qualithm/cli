@@ -171,6 +171,41 @@ describe("automation tools", () => {
     expect((await call(createAutomation, input)).result).toMatchObject({ code: "usage" })
   })
 
+  it("sends a valid payload exactly as given", async () => {
+    const payload = {
+      trigger: { type: "event", config: { capability: "temperature" } },
+      chain: [
+        { kind: "condition", config: { op: "gt", value: 30 } },
+        { kind: "action", type: "notification", config: { channel: "email" } }
+      ],
+      template: null
+    }
+    const { requests } = await call(createAutomation, { name: "hot", payload })
+    expect((requests.at(-1)?.body as { payload: unknown }).payload).toEqual(payload)
+  })
+
+  it("refuses a chain step that matches no step type before sending", async () => {
+    const payload = { ...PAYLOAD, chain: [...PAYLOAD.chain, { type: "notification" }] }
+    const { result, requests } = await call(createAutomation, { name: "x", payload })
+    expect(result).toMatchObject({
+      ok: false,
+      code: "usage",
+      message: "payload.chain.1: unknown step type"
+    })
+    expect(requests).toEqual([])
+  })
+
+  it("refuses a payload field the SDK would drop before sending", async () => {
+    const payload = { ...PAYLOAD, trigger: { ...PAYLOAD.trigger, cron: "0 * * * *" } }
+    const { result, requests } = await call(updateAutomation, { automationId: "auto_1", payload })
+    expect(result).toMatchObject({
+      ok: false,
+      code: "usage",
+      message: "payload.trigger.cron: unknown field"
+    })
+    expect(requests).toEqual([])
+  })
+
   it("plans a create on a dry run", async () => {
     const input = { name: "hourly", payload: PAYLOAD, dryRun: true }
     const { result, requests } = await call(createAutomation, input)
