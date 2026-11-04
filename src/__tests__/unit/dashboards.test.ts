@@ -116,6 +116,36 @@ describe("dashboard tools", () => {
     expect(result).toMatchObject({ ok: false, code: "usage" })
   })
 
+  it("sends valid widgets exactly as given", async () => {
+    const chart = {
+      ...WIDGET,
+      id: "w_2",
+      type: "time-series",
+      title: "temp",
+      options: { unit: "C" }
+    }
+    const { requests } = await call(createDashboard, { name: "lab", payload: [WIDGET, chart] })
+    expect((requests.at(-1)?.body as { payload: unknown }).payload).toEqual([WIDGET, chart])
+  })
+
+  it("refuses a widget field the SDK would drop before sending", async () => {
+    const widget = { ...WIDGET, source: { ...WIDGET.source, colour: "red" } }
+    const { result, requests } = await call(createDashboard, { name: "lab", payload: [widget] })
+    expect(result).toMatchObject({
+      ok: false,
+      code: "usage",
+      message: "payload.0.source.colour: unknown field"
+    })
+    expect(requests).toEqual([])
+  })
+
+  it("refuses an unknown widget key on update before sending", async () => {
+    const input = { dashboardId: "dash_1", payload: [WIDGET, { ...WIDGET, size: "large" }] }
+    const { result, requests } = await call(updateDashboard, input)
+    expect(result).toMatchObject({ code: "usage", message: "payload.1.size: unknown field" })
+    expect(requests).toEqual([])
+  })
+
   it("fetches a dashboard", async () => {
     const { result } = await call(getDashboard, { dashboardId: "dash_1" })
     expect(result).toMatchObject({ ok: true, data: { id: "dash_1", name: "lab" } })
