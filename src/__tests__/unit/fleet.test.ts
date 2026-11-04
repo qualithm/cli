@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest"
 import { run } from "../../cli.ts"
 import { callTool } from "../../mcp.ts"
 import { Session } from "../../platform.ts"
-import { updateDevice } from "../../tools/devices.ts"
+import { getDevice, updateDevice } from "../../tools/devices.ts"
 import { createScope, listScopes } from "../../tools/scopes.ts"
-import { capture, fakePlatform } from "./fake-platform.ts"
+import { capture, DEFAULT_ROUTES, DEVICE, fakePlatform } from "./fake-platform.ts"
 
 const session = (): Session => new Session({ token: "qmt_x", fetch: fakePlatform().fetch })
 
@@ -24,6 +24,65 @@ describe("device", () => {
     const c = capture()
     expect(await run(["device", "show", "dev_1"], c.io)).toBe(0)
     expect(c.out()).toMatch(/^id\s+dev_1\nname\s+sensor\nscope\s+spc_1\nparkedAt\s+-\n/)
+  })
+
+  it("prints what the claim decided after the device", async () => {
+    const decisions = [
+      {
+        key: "zone",
+        label: "Zone",
+        value: "Singapore (sg-sin-a)",
+        source: "scope",
+        docsUrl: "https://docs.qualithm.com/zones"
+      },
+      {
+        key: "credential",
+        label: "Credential",
+        value: "token",
+        source: "credential",
+        docsUrl: "https://docs.qualithm.com/http#move-a-device-to-a-certificate"
+      }
+    ]
+    const c = capture(
+      {},
+      {
+        ...DEFAULT_ROUTES,
+        "GET /v1/teams/team_1/devices/dev_1": {
+          status: 200,
+          body: { data: { ...DEVICE, decisions } }
+        }
+      }
+    )
+    expect(await run(["device", "get", "dev_1"], c.io)).toBe(0)
+    expect(c.out()).toContain(
+      "\nDecided at claim\n" +
+        "Zone        Singapore (sg-sin-a)  https://docs.qualithm.com/zones\n" +
+        "Credential  token                 https://docs.qualithm.com/http#move-a-device-to-a-certificate\n"
+    )
+  })
+
+  it("hands MCP the claim's decisions as data, and a device without them unchanged", async () => {
+    const decisions = [
+      { key: "zone", label: "Zone", value: "de-fra-a", source: "scope", docsUrl: "https://d/z" }
+    ]
+    const withDecisions = (): Session =>
+      new Session({
+        token: "qmt_x",
+        fetch: fakePlatform({
+          ...DEFAULT_ROUTES,
+          "GET /v1/teams/team_1/devices/dev_1": {
+            status: 200,
+            body: { data: { ...DEVICE, decisions } }
+          }
+        }).fetch
+      })
+    expect(await callTool(getDevice, withDecisions, { deviceId: "dev_1" })).toMatchObject({
+      ok: true,
+      data: { id: "dev_1", decisions }
+    })
+    const plain = await callTool(getDevice, session, { deviceId: "dev_1" })
+    expect(plain).toMatchObject({ ok: true, data: { id: "dev_1" } })
+    expect((plain as { data: object }).data).not.toHaveProperty("decisions")
   })
 
   it("creates a device in a scope", async () => {

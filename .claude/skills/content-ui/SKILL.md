@@ -28,9 +28,28 @@ voice produces UI text specifically. Agent-authoritative once landed.
 - **The interface states the default.** Don't ask the builder to choose what the product can choose.
   A setting with a sensible default says what that default does.
 
+## Names
+
+Each object has one name on every surface. Use these, and add a new object here when it ships.
+
+- **Scope** groups devices. Never "space".
+- **Device** is a connected device only. What a session signs in from is a **browser**.
+- **Automation** watches for something happening and does something about it. Never "trigger" or
+  "action" as objects.
+- **Dashboard** shows devices' readings and controls.
+- **Activity** is the team's record of what happened. Never "logs".
+- **Team**, **member** and **role**: a member is a person on a team; a role (owner, manager, viewer)
+  is what a member or token may do, not a page of its own.
+- **Invite**, noun and verb: "Invite member", "Pending invites", "Review invite". Never
+  "invitation".
+- **Delete account**: the action and its outcome. A deleted account can be restored until its data
+  is removed for good. Never "close" or "erase".
+- **Project** is only the builder's code folder that the CLI deploys. Never the team, the account or
+  the product.
+
 ## Labels
 
-- **Buttons are verb-first and name the object:** "Create space", "Revoke token", "Run now". A bare
+- **Buttons are verb-first and name the object:** "Create scope", "Revoke token", "Run now". A bare
   "Delete" or "Save" is allowed only inside a section whose heading already names the object.
 - **Fixed verbs.** Create (something new), Delete (gone for good), Remove (taken out of a container,
   still exists elsewhere), Revoke (a credential or access stops working), Cancel (stop a pending
@@ -46,7 +65,7 @@ voice produces UI text specifically. Agent-authoritative once landed.
 - **Labels are short nouns:** "Name", "Email", "Role". Mark the exception, not the rule: "Label
   (optional)".
 - **Placeholders show an example or the choice to make, never the label again.** Selects read
-  "Choose a space…"; free text reads "e.g. production". A placeholder never carries an instruction
+  "Choose a scope…"; free text reads "e.g. production". A placeholder never carries an instruction
   the builder needs after typing.
 - **Hints are full sentences with a period**, placed under the field: "Enter DELETE to confirm."
 - **Validation is an instruction, not a verdict:** "Name the automation", "Start the name with a
@@ -78,10 +97,11 @@ voice produces UI text specifically. Agent-authoritative once landed.
 ## Destructive actions
 
 - **Friction scales with what is lost.** Losing data or other people's access (deleting an account,
-  team, space or device): a warning that names what goes with it, plus typing DELETE. Losing a
-  single credential or membership (revoke a token, remove a member, leave a team): one confirmation
-  that names the effect. Reversible actions need none.
-- **Name the consequence, not the feeling:** "Deleting this team removes its spaces, devices and
+  team, scope or device): a warning that names what goes with it, plus typing DELETE. Losing a
+  single credential or membership (revoke a token, remove a member, leave a team), or configuration
+  the builder can rebuild (delete an automation or a dashboard): one confirmation that names the
+  effect. Reversible actions need none.
+- **Name the consequence, not the feeling:** "Deleting this team removes its scopes, devices and
   data." Then "This cannot be undone." once. Never "Please note".
 - **The button repeats the verb of the heading:** a "Revoke session" section ends in "Revoke", never
   "Delete".
@@ -97,8 +117,8 @@ voice produces UI text specifically. Agent-authoritative once landed.
 
 - **Subject:** a sentence-case statement about the reader's account, no brackets or tags: "Verify
   your email", "Your plan will be downgraded soon".
-- **One CTA, verb-first, landing on a page that exists:** "Review invitation". Don't link to a
-  surface the product doesn't have.
+- **One CTA, verb-first, landing on a page that exists:** "Review invite". Don't link to a surface
+  the product doesn't have.
 - **Greeting:** "Hi {name}," when a name is known, otherwise no greeting.
 - **Story fixtures use production's subject and copy.** A fixture that disagrees with what ships is
   a bug.
