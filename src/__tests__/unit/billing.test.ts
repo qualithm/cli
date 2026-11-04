@@ -72,12 +72,12 @@ describe("get_billing_summary", () => {
 
 describe("list_invoices", () => {
   it("lists the team's invoices with their Stripe ids", async () => {
-    const { result, urls } = await call(listInvoices, { page: 1, limit: 10 })
+    const { result, urls } = await call(listInvoices, { cursor: "cur_1", limit: 10 })
     expect(result).toMatchObject({
       ok: true,
       data: { items: [{ id: "inv_1", stripeInvoiceId: "in_1", total: money }] }
     })
-    expect(urls.at(-1)?.search).toBe("?page=1&limit=10")
+    expect(urls.at(-1)?.search).toBe("?limit=10&cursor=cur_1")
   })
 })
 

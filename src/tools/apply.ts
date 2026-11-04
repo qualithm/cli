@@ -24,15 +24,20 @@ async function deviceNames(
 ): Promise<Set<string>> {
   const devices = session.client.api(DevicesApi)
   const names = new Set<string>()
-  for (let page = 1; ; page++) {
-    const { data } = await devices.listDevices({ teamId, scopeId, page, limit: LIST_LIMIT })
+  let cursor: string | undefined
+  do {
+    const { data } = await devices.listDevices({
+      teamId,
+      scopeId,
+      limit: LIST_LIMIT,
+      ...(cursor === undefined ? {} : { cursor })
+    })
     for (const device of data.items) {
       names.add(device.name)
     }
-    if (data.last === 0 || page >= data.last) {
-      return names
-    }
-  }
+    cursor = data.nextCursor ?? undefined
+  } while (cursor !== undefined)
+  return names
 }
 
 /**

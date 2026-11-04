@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest"
 
 import { run, USAGE } from "../../cli.ts"
 import { table } from "../../table.ts"
-import { capture, DEFAULT_ROUTES, DEVICE, type Reply } from "./fake-platform.ts"
+import { capture, DEFAULT_ROUTES, DEVICE, type Reply, type Route } from "./fake-platform.ts"
 
 const dir = mkdtempSync(join(tmpdir(), "qualithm-apply-"))
 let files = 0
@@ -20,14 +20,14 @@ function manifest(body: string): string {
 
 const ONE = "scopes:\n  - id: spc_1\n    devices:\n      - name: gw-1\n"
 
-const pageOf = (items: unknown[], last = 1): Reply => ({
+const pageOf = (items: unknown[], nextCursor: string | null = null): Reply => ({
   status: 200,
-  body: { data: { items, current: 1, last } }
+  body: { data: { items, nextCursor } }
 })
 
 const NEW_DEVICE = { ...DEVICE, id: "dev_new", name: "" }
 
-const routes = (extra: Record<string, Reply> = {}): Record<string, Reply> => ({
+const routes = (extra: Record<string, Route> = {}): Record<string, Route> => ({
   ...DEFAULT_ROUTES,
   "GET /v1/teams/team_1/devices": pageOf([]),
   "POST /v1/teams/team_1/devices": { status: 201, body: { data: NEW_DEVICE } },
@@ -73,14 +73,21 @@ describe("apply", () => {
     })
   })
 
-  it("lists every page of a scope's devices, filtered by scope", async () => {
+  it("walks every page of a scope's devices by cursor, filtered by scope", async () => {
     const c = capture(
       {},
-      routes({ "GET /v1/teams/team_1/devices": pageOf([{ ...DEVICE, name: "gw-1" }], 2) })
+      routes({
+        "GET /v1/teams/team_1/devices": [
+          pageOf([{ ...DEVICE, name: "gw-0" }], "cur_2"),
+          pageOf([{ ...DEVICE, name: "gw-1" }])
+        ]
+      })
     )
     expect(await run(["apply", manifest(ONE)], c.io)).toBe(0)
     const lists = c.requests.filter((r) => r.path === "/v1/teams/team_1/devices")
-    expect(lists).toHaveLength(2)
+    expect(lists.map((r) => new URLSearchParams(r.search).get("cursor"))).toEqual([null, "cur_2"])
+    expect(lists.every((r) => new URLSearchParams(r.search).get("scopeId") === "spc_1")).toBe(true)
+    expect(mutations(c)).toEqual([])
     expect(c.out()).toContain("exists")
   })
 
@@ -88,7 +95,7 @@ describe("apply", () => {
     const path = manifest(
       JSON.stringify({ scopes: [{ id: "spc_1", devices: [{ name: "gw-1" }] }, { id: "spc_2" }] })
     )
-    const c = capture({}, routes({ "GET /v1/teams/team_1/devices": pageOf([], 0) }))
+    const c = capture({}, routes({ "GET /v1/teams/team_1/devices": pageOf([]) }))
     expect(await run(["apply", path, "--json"], c.io)).toBe(0)
     expect(JSON.parse(c.out())).toEqual({
       ok: true,
