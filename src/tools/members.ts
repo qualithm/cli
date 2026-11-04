@@ -19,10 +19,10 @@ export const listTeamMembers = defineTool({
   }
 })
 
-/** Accepts the caller's own invitation to a team. */
+/** Accepts the caller's own invite to a team. */
 export const addTeamMember = defineTool({
   name: "add_team_member",
-  description: "Accept the caller's invitation to a team, activating their membership.",
+  description: "Accept the caller's invite to a team, activating their membership.",
   mutating: true,
   input: {
     teamId: teamId("id of the team the invite belongs to"),
@@ -92,10 +92,10 @@ export const removeTeamMember = defineTool({
   }
 })
 
-/** Lists pending invitations to a team. */
+/** Lists pending invites to a team. */
 export const listTeamInvites = defineTool({
   name: "list_team_invites",
-  description: "List pending invitations to a team.",
+  description: "List pending invites to a team.",
   mutating: false,
   input: { teamId: teamId("id of the team to list invites for"), ...pageInput },
   run: async (session, input) => {
@@ -124,10 +124,10 @@ export const createTeamInvite = defineTool({
   }
 })
 
-/** Revokes a pending invitation. */
+/** Revokes a pending invite. */
 export const revokeTeamInvite = defineTool({
   name: "revoke_team_invite",
-  description: "Revoke a pending team invitation.",
+  description: "Revoke a pending team invite.",
   mutating: true,
   input: {
     teamId: teamId("id of the team"),
