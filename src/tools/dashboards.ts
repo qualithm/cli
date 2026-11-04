@@ -23,7 +23,7 @@ export const listDashboards = defineTool({
     const teamId = await session.teamId()
     const { data } = await session.client.api(DashboardsApi).listDashboards({
       teamId,
-      ...(input.page === undefined ? {} : { page: input.page }),
+      ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
       ...(input.limit === undefined ? {} : { limit: input.limit })
     })
     return data

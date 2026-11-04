@@ -20,6 +20,20 @@ export function table(rows: readonly (readonly string[])[]): string {
 }
 
 /**
+ * The line telling a person how to fetch the next page of a list.
+ *
+ * @param data - a list command's payload
+ * @returns the hint, or nothing on the last page
+ */
+export function nextPage(data: unknown): string {
+  const cursor =
+    typeof data === "object" && data !== null
+      ? (data as { nextCursor?: unknown }).nextCursor
+      : undefined
+  return typeof cursor === "string" && cursor !== "" ? `more: rerun with --cursor ${cursor}\n` : ""
+}
+
+/**
  * A cell for an optional value: the value, or `-` when it's missing.
  *
  * @param value - the value

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { run, USAGE } from "../../cli.ts"
 import { dash, table, when } from "../../table.ts"
 import { VERSION } from "../../version.ts"
-import { capture, fakePlatform } from "./fake-platform.ts"
+import { capture, DEFAULT_ROUTES, fakePlatform, TOKEN } from "./fake-platform.ts"
 
 describe("top level", () => {
   it("prints the version, matching package.json", async () => {
@@ -58,6 +58,14 @@ describe("token list", () => {
     )
   })
 
+  it("passes --cursor on and says how to fetch the next page", async () => {
+    const more = { status: 200, body: { data: { items: [TOKEN], nextCursor: "cur_3" } } }
+    const c = capture({}, { ...DEFAULT_ROUTES, "GET /v1/teams/team_1/api-tokens": more })
+    expect(await run(["token", "list", "--cursor", "cur_2"], c.io)).toBe(0)
+    expect(new URLSearchParams(c.requests.at(-1)?.search).get("cursor")).toBe("cur_2")
+    expect(c.out().endsWith("more: rerun with --cursor cur_3\n")).toBe(true)
+  })
+
   it("prints one envelope line with --json", async () => {
     const c = capture()
     expect(await run(["api-token", "list", "--json", "--limit", "5"], c.io)).toBe(0)
@@ -69,13 +77,13 @@ describe("token list", () => {
     })
   })
 
-  it("rejects a non-numeric page", async () => {
+  it("rejects a non-numeric limit", async () => {
     const c = capture()
-    expect(await run(["token", "list", "--page", "two", "--json"], c.io)).toBe(2)
+    expect(await run(["token", "list", "--limit", "two", "--json"], c.io)).toBe(2)
     expect(JSON.parse(c.out())).toEqual({
       ok: false,
       code: "usage",
-      message: "--page must be a whole number"
+      message: "--limit must be a whole number"
     })
   })
 
@@ -103,7 +111,12 @@ describe("token list", () => {
     const args = ["token", "list", "--token", "qmt_y", "--url", "https://api.example.com"]
     expect(await run([...args, "--team", "team_1"], c.io)).toBe(0)
     expect(requests).toEqual([
-      { method: "GET", path: "/v1/teams/team_1/api-tokens", userAgent: `qualithm/${VERSION}` }
+      {
+        method: "GET",
+        path: "/v1/teams/team_1/api-tokens",
+        search: "",
+        userAgent: `qualithm/${VERSION}`
+      }
     ])
   })
 })

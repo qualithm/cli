@@ -9,7 +9,11 @@ export const dryRunInput = {
 
 /** The paging input every list tool takes. */
 export const pageInput = {
-  page: z.number().int().positive().optional().describe("1-based page number"),
+  cursor: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("nextCursor from the previous page; omit for the first page"),
   limit: z.number().int().min(1).max(100).optional().describe("items per page, at most 100")
 }
 
