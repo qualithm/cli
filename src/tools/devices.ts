@@ -40,10 +40,14 @@ export const getDevice = defineTool({
   input: { deviceId: z.string().min(1).describe("id of the device to fetch") },
   run: async (session, input) => {
     const teamId = await session.teamId()
-    const { data } = await session.client
+    const response = await session.client
       .api(DevicesApi)
-      .getDevice({ teamId, deviceId: input.deviceId })
-    return data
+      .getDeviceRaw({ teamId, deviceId: input.deviceId })
+    // The claim's decisions pass through as the platform sent them, ahead of the typed client.
+    const body = (await response.raw.clone().json()) as { data?: { decisions?: unknown } }
+    const { data } = await response.value()
+    const decisions = body.data?.decisions
+    return Array.isArray(decisions) ? { ...data, decisions } : data
   }
 })
 

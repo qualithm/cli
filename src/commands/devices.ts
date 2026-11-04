@@ -17,6 +17,24 @@ import {
   stringOption
 } from "./command.ts"
 
+/** One choice Qualithm made on the builder's behalf, as the platform returns it. */
+type Decision = { key: string; label: string; value: string; source: string; docsUrl: string }
+
+/**
+ * The receipt the platform kept from the device's claim, as plain lines: one per decision with
+ * its value and docs page, or nothing when the device has none.
+ *
+ * @param device - the device as the API returns it
+ * @returns the lines, led by a blank line and a heading
+ */
+export function decisionLines(device: { decisions?: readonly Decision[] }): string {
+  const decisions = device.decisions ?? []
+  if (decisions.length === 0) {
+    return ""
+  }
+  return `\nDecided at claim\n${table(decisions.map((d) => [d.label, d.value, d.docsUrl]))}`
+}
+
 function parkedOption(values: ParsedArgs["values"]): boolean | undefined {
   if (values.park === true && values.unpark === true) {
     throw new CliError("--park and --unpark can't be used together")
@@ -51,14 +69,16 @@ export const deviceCommands: readonly Command[] = [
       deviceId: requirePositional(positionals, 0, "device id")
     }),
     human: (data: unknown): string => {
-      const device = data as Device
-      return table([
-        ["id", device.id],
-        ["name", dash(device.name)],
-        ["scope", device.scopeId],
-        ["parkedAt", when(device.parkedAt)],
-        ["createdAt", when(device.createdAt)]
-      ])
+      const device = data as Device & { decisions?: Decision[] }
+      return (
+        table([
+          ["id", device.id],
+          ["name", dash(device.name)],
+          ["scope", device.scopeId],
+          ["parkedAt", when(device.parkedAt)],
+          ["createdAt", when(device.createdAt)]
+        ]) + decisionLines(device)
+      )
     }
   },
   {
