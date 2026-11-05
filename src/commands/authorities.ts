@@ -18,9 +18,9 @@ export const authorityCommands: readonly Command[] = [
     path: ["authority", "list"],
     aliases: ["ls"],
     tool: listAuthorities,
-    options: { page: { type: "string" }, limit: { type: "string" } },
+    options: { cursor: { type: "string" }, limit: { type: "string" } },
     toInput: ({ values }) => ({
-      page: intOption(values, "page"),
+      cursor: stringOption(values, "cursor"),
       limit: intOption(values, "limit")
     }),
     human: (data: unknown): string => {

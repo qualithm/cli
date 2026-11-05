@@ -48,10 +48,10 @@ export const deviceCommands: readonly Command[] = [
     path: ["device", "list"],
     aliases: ["ls"],
     tool: listDevices,
-    options: { scope: { type: "string" }, page: { type: "string" }, limit: { type: "string" } },
+    options: { scope: { type: "string" }, cursor: { type: "string" }, limit: { type: "string" } },
     toInput: ({ values }: ParsedArgs): Record<string, unknown> => ({
       scopeId: stringOption(values, "scope"),
-      page: intOption(values, "page"),
+      cursor: stringOption(values, "cursor"),
       limit: intOption(values, "limit")
     }),
     human: (data: unknown): string =>

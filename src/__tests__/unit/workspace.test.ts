@@ -87,7 +87,7 @@ describe("get_account", () => {
 describe("list_capabilities", () => {
   it("lists the team's capabilities with filters", async () => {
     const { result, urls } = await call(listCapabilities, {
-      page: 2,
+      cursor: "cur_2",
       limit: 5,
       type: "onoff",
       tag: "light",
@@ -97,7 +97,7 @@ describe("list_capabilities", () => {
     const url = urls.at(-1)
     expect(url?.pathname).toBe("/v1/teams/team_1/capabilities")
     expect(Object.fromEntries(url?.searchParams ?? [])).toEqual({
-      page: "2",
+      cursor: "cur_2",
       limit: "5",
       type: "onoff",
       tag: "light",

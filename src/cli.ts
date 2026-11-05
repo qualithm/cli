@@ -15,6 +15,7 @@ import { type CoreIo, runCore } from "./core/command.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "./envelope.ts"
 import { buildMcpServer, callTool, type SessionFactory } from "./mcp.ts"
 import { type FetchAPI, Session, type SessionConfig } from "./platform.ts"
+import { nextPage } from "./table.ts"
 import { TOOLS } from "./tools/index.ts"
 import { VERSION } from "./version.ts"
 
@@ -187,7 +188,10 @@ async function runToolCommand(command: ToolCommand, args: string[], io: CliIo): 
   const config = sessionConfig(io, values, `qualithm/${VERSION}`)
   const newSession: SessionFactory = (dryRun) => new Session({ ...config, dryRun })
   const result = await callTool(command.tool, newSession, input)
-  return report(io, json, result, () => command.human(result.data, input))
+  return report(io, json, result, () => {
+    const text = command.human(result.data, input)
+    return "cursor" in command.options ? text + nextPage(result.data) : text
+  })
 }
 
 async function runMcp(args: string[], io: CliIo): Promise<number> {

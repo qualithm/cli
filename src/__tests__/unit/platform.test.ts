@@ -10,7 +10,9 @@ describe("sessionFetch", () => {
     const wrapped = sessionFetch(fetch, { dryRun: true, userAgent: "qualithm/test" })
     const res = await wrapped("https://api.example.com/v1/teams")
     expect(res.status).toBe(200)
-    expect(requests).toEqual([{ method: "GET", path: "/v1/teams", userAgent: "qualithm/test" }])
+    expect(requests).toEqual([
+      { method: "GET", path: "/v1/teams", search: "", userAgent: "qualithm/test" }
+    ])
   })
 
   it("refuses a mutation on a dry run, carrying its method, path and body", async () => {
