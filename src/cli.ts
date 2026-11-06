@@ -84,7 +84,7 @@ Flags, accepted by every verb before or after its arguments:
 
 Resources and verbs:
   authority  list | create | revoke <id>
-  credential list | mint | cert | rotate | revoke
+  credential list | create | cert | rotate | revoke
   device     list | get <id> | create | update <id> | delete <id>
   enrollment list | create | revoke <id>
   scope      list | get <id> | create | update <id> | delete <id>
@@ -96,7 +96,7 @@ Resources and verbs:
 Examples:
   qualithm enrollment create --scope spc_123 --label lab-floor-2
   qualithm device list --json
-  qualithm credential mint --device dev_123 --json
+  qualithm credential create --device dev_123 --json
   qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
   qualithm apply fleet.yaml --dry-run
