@@ -252,13 +252,13 @@ export const triggerAutomation = defineTool({
   }
 })
 
-/** Issues a webhook trigger secret for an automation; it is returned once. */
+/** Creates a webhook trigger secret for an automation; it is returned once. */
 export const createAutomationTriggerSecret = defineTool({
   name: "create_automation_trigger_secret",
   description:
-    "Issue a webhook trigger secret for an automation. The URL and secret are returned once.",
+    "Create a webhook trigger secret for an automation. The URL and secret are returned once.",
   mutating: true,
-  input: { automationId: automationId("to issue a trigger secret for"), ...dryRunInput },
+  input: { automationId: automationId("to create a trigger secret for"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
     const { data } = await session.client

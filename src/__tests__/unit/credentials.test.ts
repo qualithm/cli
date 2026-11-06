@@ -25,13 +25,13 @@ describe("credential list", () => {
   })
 })
 
-describe("credential mint", () => {
-  it("mints a token and shows its secret once", async () => {
+describe("credential create", () => {
+  it("creates a token and shows its secret once", async () => {
     const c = capture()
     const args = ["credential", "create", ...device, "--label", "lab"]
     expect(await run([...args, "--expires-at", "2026-12-31T00:00:00Z"], c.io)).toBe(0)
     expect(c.out()).toBe(
-      "credential cred_2 minted for device dev_1\nsecret (shown once): qmd_secret\n"
+      "credential cred_2 created for device dev_1\nsecret (shown once): qmd_secret\n"
     )
     expect(c.requests.at(-1)?.body).toEqual({
       label: "lab",
@@ -39,7 +39,7 @@ describe("credential mint", () => {
     })
   })
 
-  it("rejects an expiry that isn't RFC 3339", async () => {
+  it("rejects an expiry that isn't RFC 3339 through the mint alias", async () => {
     const c = capture()
     expect(await run(["credential", "mint", ...device, "--expires-at", "tomorrow"], c.io)).toBe(2)
     expect(c.err()).toBe(

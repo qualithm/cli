@@ -314,7 +314,7 @@ describe("automation tools", () => {
     expect((await call(triggerAutomation, { secret: "" })).result).toMatchObject({ code: "usage" })
   })
 
-  it("issues a trigger secret, and plans it on a dry run", async () => {
+  it("creates a trigger secret, and plans it on a dry run", async () => {
     const { result } = await call(createAutomationTriggerSecret, { automationId: "auto_1" })
     expect(result).toMatchObject({ ok: true, data: { secret: "qma_s" } })
     const dry = await call(createAutomationTriggerSecret, { automationId: "auto_1", dryRun: true })
