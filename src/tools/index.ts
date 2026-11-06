@@ -4,9 +4,9 @@ import { automationTools } from "./automations.ts"
 import { billingTools } from "./billing.ts"
 import { boardTools } from "./boards.ts"
 import {
+  createCredential,
   issueCert,
   listCredentials,
-  mintCredential,
   revokeCredential,
   rotateCredential
 } from "./credentials.ts"
@@ -31,7 +31,7 @@ export const TOOLS: readonly Tool[] = [
   createAuthority,
   revokeAuthority,
   listCredentials,
-  mintCredential,
+  createCredential,
   issueCert,
   rotateCredential,
   revokeCredential,

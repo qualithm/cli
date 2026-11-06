@@ -26,13 +26,13 @@ export const listCredentials = defineTool({
   }
 })
 
-/** Mints a token credential for a device; its secret is returned once. */
-export const mintCredential = defineTool({
-  name: "mint_credential",
-  description: "Mint a token credential for a device. The plaintext secret is returned once.",
+/** Creates a token credential for a device; its secret is returned once. */
+export const createCredential = defineTool({
+  name: "create_credential",
+  description: "Create a token credential for a device. The plaintext secret is returned once.",
   mutating: true,
   input: {
-    deviceId: deviceId("to mint a credential for"),
+    deviceId: deviceId("to create a credential for"),
     label: z.string().optional().describe("human-readable credential label"),
     expiresAt,
     ...dryRunInput
