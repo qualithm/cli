@@ -13,7 +13,7 @@ describe("device", () => {
   it("lists devices, optionally one scope's", async () => {
     const c = capture()
     expect(await run(["devices", "ls"], c.io)).toBe(0)
-    expect(c.out()).toMatch(/^ID\s+NAME\s+SCOPE\ndev_1\s+sensor\s+spc_1\n$/)
+    expect(c.out()).toMatch(/^ID\s+NAME\s+SCOPE\s+LEVEL\ndev_1\s+sensor\s+spc_1\s+-\n$/)
     expect(c.requests.at(-1)?.path).toBe("/v1/teams/team_1/devices")
     const one = capture()
     expect(await run(["device", "list", "--scope", "spc_1", "--limit", "5"], one.io)).toBe(0)
@@ -24,6 +24,84 @@ describe("device", () => {
     const c = capture()
     expect(await run(["device", "show", "dev_1"], c.io)).toBe(0)
     expect(c.out()).toMatch(/^id\s+dev_1\nname\s+sensor\nscope\s+spc_1\nparkedAt\s+-\n/)
+  })
+
+  it("prints a development device's level and each check, with the fix for a failing one", async () => {
+    const checks = [
+      { id: "credential-certificate", pass: false, evidence: "the device connects with a token" },
+      { id: "key-protected", pass: true, evidence: "its key was generated in a secure element" }
+    ]
+    const c = capture(
+      {},
+      {
+        ...DEFAULT_ROUTES,
+        "GET /v1/teams/team_1/devices": {
+          status: 200,
+          body: {
+            data: {
+              items: [{ ...DEVICE, level: "development", checks }],
+              current: 1,
+              last: 1,
+              total: 1,
+              limit: 20,
+              nextCursor: null
+            }
+          }
+        },
+        "GET /v1/teams/team_1/devices/dev_1": {
+          status: 200,
+          body: { data: { ...DEVICE, level: "development", checks } }
+        }
+      }
+    )
+    expect(await run(["device", "get", "dev_1"], c.io)).toBe(0)
+    expect(c.out()).toContain(
+      "\nLevel: Development\n" +
+        "A device reaches production when every check passes.\n" +
+        "Certificate credential  fail  The device connects with a token. " +
+        "Connect the device with a certificate, then revoke its tokens.\n" +
+        "Protected key           pass  Its key was generated in a secure element.\n"
+    )
+    expect(await run(["device", "list"], c.io)).toBe(0)
+    expect(c.out()).toMatch(/dev_1\s+sensor\s+spc_1\s+Development\n/)
+  })
+
+  it("prints a production device's level without the hint", async () => {
+    const checks = [{ id: "firmware-signed", pass: true, evidence: "the firmware is signed" }]
+    const c = capture(
+      {},
+      {
+        ...DEFAULT_ROUTES,
+        "GET /v1/teams/team_1/devices/dev_1": {
+          status: 200,
+          body: { data: { ...DEVICE, level: "production", checks } }
+        }
+      }
+    )
+    expect(await run(["device", "get", "dev_1"], c.io)).toBe(0)
+    expect(c.out()).toContain(
+      "\nLevel: Production\nSigned firmware  pass  The firmware is signed.\n"
+    )
+    expect(c.out()).not.toContain("reaches production")
+  })
+
+  it("hands MCP the device's level and checks as data", async () => {
+    const checks = [{ id: "credential-current", pass: true, evidence: "every credential expires" }]
+    const withLevel = (): Session =>
+      new Session({
+        token: "qmt_x",
+        fetch: fakePlatform({
+          ...DEFAULT_ROUTES,
+          "GET /v1/teams/team_1/devices/dev_1": {
+            status: 200,
+            body: { data: { ...DEVICE, level: "production", checks } }
+          }
+        }).fetch
+      })
+    expect(await callTool(getDevice, withLevel, { deviceId: "dev_1" })).toMatchObject({
+      ok: true,
+      data: { id: "dev_1", level: "production", checks }
+    })
   })
 
   it("prints what the claim decided after the device", async () => {
