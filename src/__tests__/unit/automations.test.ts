@@ -45,6 +45,18 @@ const RUN = {
   executedAt: null
 }
 
+const DECISIONS = [
+  {
+    key: "channel",
+    label: "Channel",
+    value: "push",
+    source: "automation",
+    docsUrl: "https://docs.qualithm.com/notifications"
+  }
+]
+
+const FIRED = { ...RUN, id: "run_2", status: "succeeded", decisions: DECISIONS }
+
 const TEMPLATE = {
   id: "tpl_1",
   version: 1,
@@ -66,7 +78,7 @@ const ROUTES = {
   "PATCH /v1/teams/team_1/automations/auto_1": { status: 200, body: { data: AUTOMATION } },
   "DELETE /v1/teams/team_1/automations/auto_1": { status: 204 },
   "POST /v1/teams/team_1/automations/auto_1/runs": { status: 202, body: { data: { id: "run_1" } } },
-  "GET /v1/teams/team_1/automations/auto_1/runs": { status: 200, body: page([RUN]) },
+  "GET /v1/teams/team_1/automations/auto_1/runs": { status: 200, body: page([RUN, FIRED]) },
   "GET /v1/teams/team_1/devices/dev_1/automation-templates": {
     status: 200,
     body: { data: [TEMPLATE] }
@@ -269,8 +281,20 @@ describe("automation tools", () => {
 
   it("lists an automation's runs", async () => {
     const { result } = await call(listAutomationRuns, { automationId: "auto_1", page: 1, limit: 5 })
-    expect(result).toMatchObject({ ok: true, data: { items: [{ id: "run_1", status: "queued" }] } })
+    expect(result).toMatchObject({
+      ok: true,
+      data: { items: [{ id: "run_1", status: "queued" }, { id: "run_2" }] }
+    })
     expect((await call(listAutomationRuns, { automationId: "auto_1" })).result.ok).toBe(true)
+  })
+
+  it("returns a fired alert's decisions with its run, and none with the others", async () => {
+    const { result } = await call(listAutomationRuns, { automationId: "auto_1" })
+    const {
+      data: { items }
+    } = result as { data: { items: Record<string, unknown>[] } }
+    expect(items[0]).not.toHaveProperty("decisions")
+    expect(items[1]).toMatchObject({ id: "run_2", decisions: DECISIONS })
   })
 
   it("rejects a runs list without an automation", async () => {
