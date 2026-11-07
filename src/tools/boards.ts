@@ -3,7 +3,7 @@ import { resolve } from "node:path"
 import { z } from "zod"
 
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
-import { pickBoard } from "../board/flash.ts"
+import { type FlashResult, pickBoard } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
 import { collectProject, type Setup } from "../board/sync.ts"
 import { type DeployResult, pickRunning, type ProbeResult } from "../core/boards.ts"
@@ -21,6 +21,7 @@ import {
   type WifiLookup,
   type WifiResolver
 } from "./provision.ts"
+import { boardDecisions } from "./receipt.ts"
 import { defineTool, dryRunInput, type Tool } from "./tool.ts"
 
 const serialNumber = {
@@ -158,10 +159,11 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
           const board = pickBoard(await list(client), input.serialNumber)
           return { board, version: MICROPYTHON_PICO_2_W.version }
         }
-        return client.send({
+        const flashed = (await client.send({
           verb: "flash",
           ...(input.serialNumber === undefined ? {} : { serialNumber: input.serialNumber })
-        })
+        })) as FlashResult
+        return { ...flashed, decisions: boardDecisions({ firmware: flashed.version }) }
       }
     }),
     defineTool({
@@ -260,7 +262,17 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
           dryRun,
           ...(setup === undefined ? {} : { setup })
         })) as DeployResult
-        return provisioned === undefined ? result : { ...result, provisioned }
+        const withProvisioned = provisioned === undefined ? result : { ...result, provisioned }
+        if (dryRun) {
+          return withProvisioned
+        }
+        const decisions = boardDecisions({
+          firmware: result.flashed,
+          sdk: true,
+          scopeId: provisioned?.scopeId,
+          wifiNetwork: provisioned?.wifiNetwork
+        })
+        return { ...withProvisioned, decisions }
       }
     }),
     defineTool({
