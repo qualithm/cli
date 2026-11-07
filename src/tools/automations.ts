@@ -195,13 +195,25 @@ export const listAutomationRuns = defineTool({
   input: { automationId: automationId("to list runs for"), ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
-    const { data } = await session.client.api(AutomationsApi).listAutomationRuns({
+    const response = await session.client.api(AutomationsApi).listAutomationRunsRaw({
       teamId,
       automationId: input.automationId,
       ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
       ...(input.limit === undefined ? {} : { limit: input.limit })
     })
-    return data
+    // A fired alert's decisions pass through as the platform sent them, ahead of the typed client.
+    const body = (await response.raw.clone().json()) as {
+      data?: { items?: { decisions?: unknown }[] }
+    }
+    const { data } = await response.value()
+    const sent = body.data?.items ?? []
+    return {
+      ...data,
+      items: data.items.map((run, index) => {
+        const decisions = sent[index]?.decisions
+        return Array.isArray(decisions) ? { ...run, decisions } : run
+      })
+    }
   }
 })
 
