@@ -9,6 +9,7 @@ import {
   listDevices,
   updateDevice
 } from "../tools/devices.ts"
+import type { Decision } from "../tools/receipt.ts"
 import {
   type Command,
   intOption,
@@ -17,22 +18,23 @@ import {
   stringOption
 } from "./command.ts"
 
-/** One choice Qualithm made on the builder's behalf, as the platform returns it. */
-type Decision = { key: string; label: string; value: string; source: string; docsUrl: string }
-
 /**
- * The receipt the platform kept from the device's claim, as plain lines: one per decision with
- * its value and docs page, or nothing when the device has none.
+ * A receipt as plain lines: one per decision with its value and docs page, or nothing when there
+ * is none.
  *
- * @param device - the device as the API returns it
- * @returns the lines, led by a blank line and a heading
+ * @param holder - the device as the API returns it, or a flash or deploy result
+ * @param heading - what the decisions were made at
+ * @returns the lines, led by a blank line and the heading
  */
-export function decisionLines(device: { decisions?: readonly Decision[] }): string {
-  const decisions = device.decisions ?? []
+export function decisionLines(
+  holder: { decisions?: readonly Decision[] },
+  heading = "Decided at claim"
+): string {
+  const decisions = holder.decisions ?? []
   if (decisions.length === 0) {
     return ""
   }
-  return `\nDecided at claim\n${table(decisions.map((d) => [d.label, d.value, d.docsUrl]))}`
+  return `\n${heading}\n${table(decisions.map((d) => [d.label, d.value, d.docsUrl]))}`
 }
 
 /** How each check is named, and the one thing that makes a failing one pass, as the app says it. */
