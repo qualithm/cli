@@ -1,0 +1,11 @@
+# gitleaks allowlist (qualithm/pm#402). Each entry names one file and the one
+# rule that fired on a reviewed false positive there; every other rule and
+# file is still scanned. Add an entry only for a reviewed false positive.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "SHA-256 values of the SDK release modules"
+targetRules = ["generic-api-key"]
+paths = ['''^src/board/sdk\.ts$''']
