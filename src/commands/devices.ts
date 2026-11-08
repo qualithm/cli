@@ -1,4 +1,4 @@
-import type { Device, DevicePage } from "@qualithm/platform"
+import type { Device, DeviceCheck, DevicePage } from "@qualithm/platform"
 
 import { CliError } from "../envelope.ts"
 import { dash, table, when } from "../table.ts"
@@ -9,6 +9,7 @@ import {
   listDevices,
   updateDevice
 } from "../tools/devices.ts"
+import type { Decision } from "../tools/receipt.ts"
 import {
   type Command,
   intOption,
@@ -17,22 +18,72 @@ import {
   stringOption
 } from "./command.ts"
 
-/** One choice Qualithm made on the builder's behalf, as the platform returns it. */
-type Decision = { key: string; label: string; value: string; source: string; docsUrl: string }
-
 /**
- * The receipt the platform kept from the device's claim, as plain lines: one per decision with
- * its value and docs page, or nothing when the device has none.
+ * A receipt as plain lines: one per decision with its value and docs page, or nothing when there
+ * is none.
  *
- * @param device - the device as the API returns it
- * @returns the lines, led by a blank line and a heading
+ * @param holder - the device as the API returns it, or a flash or deploy result
+ * @param heading - what the decisions were made at
+ * @returns the lines, led by a blank line and the heading
  */
-export function decisionLines(device: { decisions?: readonly Decision[] }): string {
-  const decisions = device.decisions ?? []
+export function decisionLines(
+  holder: { decisions?: readonly Decision[] },
+  heading = "Decided at claim"
+): string {
+  const decisions = holder.decisions ?? []
   if (decisions.length === 0) {
     return ""
   }
-  return `\nDecided at claim\n${table(decisions.map((d) => [d.label, d.value, d.docsUrl]))}`
+  return `\n${heading}\n${table(decisions.map((d) => [d.label, d.value, d.docsUrl]))}`
+}
+
+/** How each check is named, and the one thing that makes a failing one pass, as the app says it. */
+export const DEVICE_CHECKS: Record<DeviceCheck["id"], { label: string; fix: string }> = {
+  "credential-certificate": {
+    label: "Certificate credential",
+    fix: "Connect the device with a certificate, then revoke its tokens."
+  },
+  "key-protected": {
+    label: "Protected key",
+    fix: "Provision the device so its key is generated in protected hardware."
+  },
+  "firmware-signed": {
+    label: "Signed firmware",
+    fix: "Provision the device so it runs signed firmware."
+  },
+  "credential-current": {
+    label: "Expiring credential",
+    fix: "Revoke each credential that never expires."
+  }
+}
+
+/**
+ * @param level - the device's level as the API returns it
+ * @returns the level as a person reads it, or a dash when the API sent none
+ */
+export function levelName(level: string | undefined): string {
+  return level === undefined ? "-" : `${level.charAt(0).toUpperCase()}${level.slice(1)}`
+}
+
+/**
+ * The device's level and each check behind it: its name, whether it passes, the evidence, and the
+ * fix for a failing one.
+ *
+ * @param device - the device as the API returns it
+ * @returns the lines, led by a blank line and a heading, or nothing when the API sent no level
+ */
+export function levelLines(device: Pick<Device, "level" | "checks">): string {
+  if (device.level === undefined) {
+    return ""
+  }
+  const lines = (device.checks ?? []).map((check) => {
+    const { label, fix } = DEVICE_CHECKS[check.id]
+    const evidence = `${check.evidence.charAt(0).toUpperCase()}${check.evidence.slice(1)}.`
+    return [label, check.pass ? "pass" : "fail", check.pass ? evidence : `${evidence} ${fix}`]
+  })
+  const hint =
+    device.level === "production" ? "" : "A device reaches production when every check passes.\n"
+  return `\nLevel: ${levelName(device.level)}\n${hint}${lines.length > 0 ? table(lines) : ""}`
 }
 
 function parkedOption(values: ParsedArgs["values"]): boolean | undefined {
@@ -56,8 +107,13 @@ export const deviceCommands: readonly Command[] = [
     }),
     human: (data: unknown): string =>
       table([
-        ["ID", "NAME", "SCOPE"],
-        ...(data as DevicePage).items.map((d) => [d.id, dash(d.name), d.scopeId])
+        ["ID", "NAME", "SCOPE", "LEVEL"],
+        ...(data as DevicePage).items.map((d) => [
+          d.id,
+          dash(d.name),
+          d.scopeId,
+          levelName(d.level)
+        ])
       ])
   },
   {
@@ -77,7 +133,9 @@ export const deviceCommands: readonly Command[] = [
           ["scope", device.scopeId],
           ["parkedAt", when(device.parkedAt)],
           ["createdAt", when(device.createdAt)]
-        ]) + decisionLines(device)
+        ]) +
+        levelLines(device) +
+        decisionLines(device)
       )
     }
   },

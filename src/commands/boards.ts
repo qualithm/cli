@@ -12,8 +12,10 @@ import { callTool, type SessionFactory } from "../mcp.ts"
 import { dash, table } from "../table.ts"
 import { boardTools, type ConsoleReply, tail } from "../tools/boards.ts"
 import { type Ask, type Provisioned, terminalWifi, type WifiLookup } from "../tools/provision.ts"
+import type { Decision } from "../tools/receipt.ts"
 import { terminalAsk } from "./ask.ts"
 import { intOption, stringOption } from "./command.ts"
+import { decisionLines } from "./devices.ts"
 
 /** Where `qualithm board` writes and what it talks to; tests pass their own. */
 export type BoardIo = {
@@ -112,7 +114,10 @@ function boardsTable(boards: Board[]): string {
   ])
 }
 
-function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: boolean): string {
+function deployed(
+  result: DeployResult & { provisioned?: Provisioned; decisions?: Decision[] },
+  dryRun: boolean
+): string {
   const lines: string[] = []
   const would = dryRun ? "would " : ""
   const virtual = result.board.serialNumber?.startsWith(VIRTUAL_PREFIX) === true
@@ -141,7 +146,7 @@ function deployed(result: DeployResult & { provisioned?: Provisioned }, dryRun: 
     virtual && !dryRun
       ? [`follow its output: qualithm board logs --serial ${result.board.serialNumber ?? ""} -f`]
       : []
-  return `${[...lines, summary, ...follow].join("\n")}\n`
+  return `${[...lines, summary, ...follow].join("\n")}\n${decisionLines(result, "Decided for this deploy")}`
 }
 
 function human(verb: string, data: unknown, dryRun: boolean): string {
@@ -157,8 +162,8 @@ function human(verb: string, data: unknown, dryRun: boolean): string {
     return deployed(data as DeployResult, dryRun)
   }
   if (verb === "flash") {
-    const result = data as FlashResult
-    return `flashed MicroPython ${result.version} onto ${where(result)}\n`
+    const result = data as FlashResult & { decisions?: Decision[] }
+    return `flashed MicroPython ${result.version} onto ${where(result)}\n${decisionLines(result, "Decided for this flash")}`
   }
   if (verb === "reset") {
     return `reset ${where(data as { port: string })}, running again\n`

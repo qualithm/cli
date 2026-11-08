@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { DEVICE_SDK } from "../../board/sdk.ts"
 import { type CliIo, run } from "../../cli.ts"
 import { BOARD_USAGE, runBoard } from "../../commands/boards.ts"
 import type { BoardOps } from "../../core/boards.ts"
@@ -10,6 +11,7 @@ import type { LogPage } from "../../core/taps.ts"
 import { CliError, type ErrorCode } from "../../envelope.ts"
 import { callTool } from "../../mcp.ts"
 import { boardTools, consoleExchange } from "../../tools/boards.ts"
+import { boardDecisions } from "../../tools/receipt.ts"
 import type { Tool } from "../../tools/tool.ts"
 import { fakeOps } from "./core/fake-ops.ts"
 import { fakeSession } from "./provision.test.ts"
@@ -100,7 +102,10 @@ describe("board tools", () => {
     const client = clientOf(ops)
     expect(
       await callTool(tool(client, "flash_board"), noSession, { serialNumber: "abc" })
-    ).toMatchObject({ ok: true, data: { version: "1.29.0" } })
+    ).toMatchObject({
+      ok: true,
+      data: { version: "1.29.0", decisions: boardDecisions({ firmware: "1.29.0" }) }
+    })
     expect(await callTool(tool(client, "reset_board"), noSession, {})).toMatchObject({
       ok: true,
       data: { port: "/dev/cu.pico" }
@@ -177,7 +182,10 @@ describe("deploy", () => {
     const ops = fakeOps()
     const dir = await projectDir()
     const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, { dir })
-    expect(result).toMatchObject({ ok: true, data: { written: ["/main.py"] } })
+    expect(result).toMatchObject({
+      ok: true,
+      data: { written: ["/main.py"], decisions: boardDecisions({ sdk: true }) }
+    })
     expect(ops.calls).toEqual(["probe:-", "deploy:-:/main.py:false"])
   })
 
@@ -189,7 +197,9 @@ describe("deploy", () => {
     expect(c.err()).toBe("")
     expect(code).toBe(0)
     expect(c.out()).toBe(
-      "write  /main.py\ndeployed to abc on /dev/cu.pico: 1 written, 0 removed, 0 unchanged; restarted\n"
+      "write  /main.py\ndeployed to abc on /dev/cu.pico: 1 written, 0 removed, 0 unchanged; restarted\n" +
+        "\nDecided for this deploy\n" +
+        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/devices#add-a-device\n`
     )
     ops.deploy = async () =>
       Promise.resolve({
@@ -377,7 +387,11 @@ describe("qualithm board", () => {
     const ops = fakeOps()
     const flash = capture({ client: clientOf(ops) })
     expect(await run(["board", "flash", "--serial", "abc"], flash)).toBe(0)
-    expect(flash.out()).toBe("flashed MicroPython 1.29.0 onto abc on /dev/cu.pico\n")
+    expect(flash.out()).toBe(
+      "flashed MicroPython 1.29.0 onto abc on /dev/cu.pico\n" +
+        "\nDecided for this flash\n" +
+        "MicroPython  1.29.0  https://docs.qualithm.com/devices#add-a-device\n"
+    )
     const reset = capture({ client: clientOf(ops) })
     expect(await run(["board", "reset"], reset)).toBe(0)
     expect(reset.out()).toBe("reset abc on /dev/cu.pico, running again\n")
@@ -607,6 +621,10 @@ describe("virtual deploy", () => {
         "write  /main.py",
         `deployed to ${serial} on /data/virtual/x: 1 written, 0 removed, 0 unchanged; restarted`,
         `follow its output: qualithm board logs --serial ${serial} -f`,
+        "",
+        "Decided for this deploy",
+        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/devices#add-a-device`,
+        "Scope                spc_1  https://docs.qualithm.com/scopes#add-a-device-to-a-scope",
         ""
       ].join("\n")
     )

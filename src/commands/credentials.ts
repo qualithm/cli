@@ -4,9 +4,9 @@ import { z } from "zod"
 import { CliError } from "../envelope.ts"
 import { dash, table, when } from "../table.ts"
 import {
+  createCredential,
   issueCert,
   listCredentials,
-  mintCredential,
   revokeCredential,
   rotateCredential
 } from "../tools/credentials.ts"
@@ -32,7 +32,7 @@ function expiresAtOption(values: ParsedArgs["values"]): string | undefined {
   return value
 }
 
-/** `qualithm credential …`: list, mint, issue, rotate and revoke device credentials. */
+/** `qualithm credential …`: list, create, issue, rotate and revoke device credentials. */
 export const credentialCommands: readonly Command[] = [
   {
     path: ["credential", "list"],
@@ -56,9 +56,9 @@ export const credentialCommands: readonly Command[] = [
       ])
   },
   {
-    path: ["credential", "mint"],
-    aliases: ["create"],
-    tool: mintCredential,
+    path: ["credential", "create"],
+    aliases: ["mint"],
+    tool: createCredential,
     options: {
       device: { type: "string" },
       label: { type: "string" },
@@ -71,7 +71,7 @@ export const credentialCommands: readonly Command[] = [
     human: (data: unknown): string => {
       const { credential, secret } = data as CredentialSecret
       return (
-        `credential ${credential.id} minted for device ${credential.deviceId}\n` +
+        `credential ${credential.id} created for device ${credential.deviceId}\n` +
         `secret (shown once): ${secret}\n`
       )
     }
