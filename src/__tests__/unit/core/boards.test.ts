@@ -254,6 +254,36 @@ describe("boardOps", () => {
     expect(flashed).toEqual(["-"])
   })
 
+  it("deploys to the only blank board beside running ones, by the ID it comes back with", async () => {
+    const board = new FakeBoard()
+    const other = running("zzz", "/dev/cu.other")
+    const back = running("a6afd22c8a7c3ef8", "/dev/cu.pico")
+    const opened: string[] = []
+    const o = ops(
+      board,
+      [
+        [other, waiting],
+        [other, back]
+      ],
+      {
+        open: async (path) => {
+          opened.push(path)
+          return Promise.resolve(board)
+        },
+        flash: async () =>
+          Promise.resolve({
+            port: "/dev/cu.pico",
+            serialNumber: "a6afd22c8a7c3ef8",
+            version: "1.29.0",
+            machine: "Pico"
+          })
+      }
+    )
+    const result = await o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+    expect(result).toMatchObject({ board: { port: "/dev/cu.pico" }, flashed: "1.29.0" })
+    expect(opened).toEqual(["/dev/cu.pico"])
+  })
+
   it("says a blank board would be flashed on a dry run, touching nothing", async () => {
     const board = new FakeBoard()
     const result = await ops(board, [[waiting]]).deploy(

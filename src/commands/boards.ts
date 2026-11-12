@@ -107,7 +107,9 @@ function boardsTable(boards: Board[]): string {
   return table([
     ["STATE", "SERIAL", "WHERE"],
     ...boards.map((b) =>
-      b.state === "bootsel" ? ["bootsel", "-", b.drive] : [b.state, dash(b.serialNumber), b.port]
+      b.state === "bootsel"
+        ? ["bootsel", dash(b.serialNumber), b.drive]
+        : [b.state, dash(b.serialNumber), b.port]
     )
   ])
 }
