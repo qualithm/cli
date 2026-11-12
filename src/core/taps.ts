@@ -20,7 +20,10 @@ export type TapDeps = {
   list: () => Promise<Board[]>
   open: (path: string) => Promise<SerialPort>
   /** Picks the running board a verb acts on. */
-  pick: (boards: Board[], serialNumber?: string) => Extract<Board, { state: "micropython" }>
+  pick: (
+    boards: Board[],
+    serialNumber?: string
+  ) => Extract<Board, { state: "micropython" | "esp32" }>
   /** How long one read waits for bytes before checking whether to stop. */
   read_wait_ms: number
   /** How many chunks a board's buffer keeps; older ones are dropped. */
@@ -29,7 +32,7 @@ export type TapDeps = {
   sleep: (ms: number) => Promise<void>
 }
 
-type Running = Extract<Board, { state: "micropython" }>
+type Running = Extract<Board, { state: "micropython" | "esp32" }>
 
 type Tap = {
   port: SerialPort

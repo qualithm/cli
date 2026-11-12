@@ -4,9 +4,13 @@ import { findBootselDrives } from "../../../board/bootsel.ts"
 import {
   defaultDiscoverHost,
   type DiscoverHost,
+  isEsp32Port,
+  isMicroPythonEsp32Port,
   listSerialPorts,
   parseIoreg,
-  parseWindowsPorts
+  parseWindowsPorts,
+  sameSerial,
+  type SerialInfo
 } from "../../../board/discover.ts"
 import { CliError } from "../../../envelope.ts"
 
@@ -245,5 +249,39 @@ describe("findBootselDrives", () => {
 
   it("defaults to the current user", async () => {
     await expect(findBootselDrives(host("linux"))).resolves.toEqual([])
+  })
+})
+
+describe("ESP32 ports", () => {
+  const port = (vendorId: string, productId: string): SerialInfo => ({
+    path: "/dev/x",
+    vendorId,
+    productId
+  })
+
+  it("takes the built-in USB serial unit and the CH9102 bridge as ESP32s", () => {
+    expect(isEsp32Port(port("303a", "1001"))).toBe(true)
+    expect(isEsp32Port(port("1a86", "55d4"))).toBe(true)
+    expect(isEsp32Port(port("303a", "4001"))).toBe(false)
+    expect(isEsp32Port(port("1a86", "7523"))).toBe(false)
+    expect(isEsp32Port(port("2e8a", "0005"))).toBe(false)
+  })
+
+  it("knows MicroPython's own ESP32 port", () => {
+    expect(isMicroPythonEsp32Port(port("303a", "4001"))).toBe(true)
+    expect(isMicroPythonEsp32Port(port("303a", "1001"))).toBe(false)
+  })
+})
+
+describe("sameSerial", () => {
+  it("matches an ESP32-S3's ROM and MicroPython serial numbers", () => {
+    expect(sameSerial("44:1B:F6:F5:52:1C", "441bf6f5521c0000")).toBe(true)
+    expect(sameSerial("441bf6f5521c0000", "44:1B:F6:F5:52:1C")).toBe(true)
+    expect(sameSerial("44:1B:F6:F5:52:1C", "9C:CC:01:33:91:AC")).toBe(false)
+  })
+
+  it("compares short or non-hex serial numbers whole, ignoring case", () => {
+    expect(sameSerial("PICO-SERIAL", "pico-serial")).toBe(true)
+    expect(sameSerial("abc", "abcd")).toBe(false)
   })
 })

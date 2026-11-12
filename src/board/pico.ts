@@ -1,6 +1,12 @@
 import { CliError } from "../envelope.ts"
 import { type BootselDrive, findBootselDrives } from "./bootsel.ts"
-import { defaultDiscoverHost, type DiscoverHost, listSerialPorts } from "./discover.ts"
+import {
+  defaultDiscoverHost,
+  type DiscoverHost,
+  isEsp32Port,
+  isMicroPythonEsp32Port,
+  listSerialPorts
+} from "./discover.ts"
 import { defaultRawReplConfig, RawRepl, type RawReplConfig } from "./raw-repl.ts"
 import type { SerialPort } from "./serial.ts"
 
@@ -9,7 +15,7 @@ export const RPI_VENDOR_ID = "2e8a"
 /** MicroPython's product ID on RP2 boards. */
 export const MICROPYTHON_PRODUCT_ID = "0005"
 
-/** An RP2 board plugged into this machine. */
+/** A Pico or ESP32 board plugged into this machine. */
 export type Board =
   | {
       /** Running MicroPython, reachable over serial. */
@@ -18,6 +24,21 @@ export type Board =
       port: string
       /** The board's unique ID, as its USB serial number. */
       serialNumber?: string
+      /** `esp32` for an ESP32-S3 running MicroPython; a Pico otherwise. */
+      family?: "esp32"
+    }
+  | {
+      /**
+       * An ESP32 whose firmware its USB identity doesn't name: MicroPython, other firmware, or
+       * its ROM bootloader.
+       */
+      state: "esp32"
+      port: string
+      serialNumber?: string
+      /** USB vendor ID, four lowercase hex digits. */
+      vendorId: string
+      /** USB product ID, four lowercase hex digits. */
+      productId: string
     }
   | {
       /** Waiting in BOOTSEL mode for a UF2 file. */
@@ -29,8 +50,8 @@ export type Board =
     }
 
 /**
- * Lists the RP2 boards plugged in, running MicroPython or in BOOTSEL mode. Never interrupts a
- * running board.
+ * Lists the Pico and ESP32 boards plugged in: Picos running MicroPython or in BOOTSEL mode, and
+ * ESP32 boards. Never interrupts a running board.
  *
  * @param host - what to read; the real OS by default
  * @returns the boards, running ones first
@@ -38,13 +59,22 @@ export type Board =
  */
 export async function listBoards(host: DiscoverHost = defaultDiscoverHost): Promise<Board[]> {
   const ports = await listSerialPorts(host)
-  const running: Board[] = ports
-    .filter((p) => p.vendorId === RPI_VENDOR_ID && p.productId === MICROPYTHON_PRODUCT_ID)
-    .map((p) => ({
-      state: "micropython",
-      port: p.path,
-      ...(p.serialNumber === undefined ? {} : { serialNumber: p.serialNumber })
-    }))
+  const serial = (p: { serialNumber?: string }): { serialNumber?: string } =>
+    p.serialNumber === undefined ? {} : { serialNumber: p.serialNumber }
+  const running: Board[] = ports.flatMap((p): Board[] => {
+    if (p.vendorId === RPI_VENDOR_ID && p.productId === MICROPYTHON_PRODUCT_ID) {
+      return [{ state: "micropython", port: p.path, ...serial(p) }]
+    }
+    if (isMicroPythonEsp32Port(p)) {
+      return [{ state: "micropython", port: p.path, ...serial(p), family: "esp32" }]
+    }
+    if (isEsp32Port(p)) {
+      return [
+        { state: "esp32", port: p.path, ...serial(p), vendorId: p.vendorId, productId: p.productId }
+      ]
+    }
+    return []
+  })
   const waiting: Board[] = (await findBootselDrives(host)).map((d: BootselDrive) => ({
     state: "bootsel",
     drive: d.path,
