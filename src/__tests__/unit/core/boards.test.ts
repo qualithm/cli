@@ -188,13 +188,12 @@ describe("boardOps", () => {
     })
   })
 
-  it("takes a board that restarted too fast to be seen leaving", async () => {
+  it("fails when the board never leaves USB after a reset", async () => {
     const board = new FakeBoard()
     board.vanishes = true
-    expect(await ops(board, [[pico]], { appear_timeout_ms: 0 }).reset()).toEqual({
-      port: "/dev/cu.pico",
-      serialNumber: "abc"
-    })
+    await expect(ops(board, [[pico]], { appear_timeout_ms: 5 }).reset()).rejects.toEqual(
+      new CliError("the board didn't restart: it never left USB", "unavailable")
+    )
   })
 
   it("fails when the board doesn't come back", async () => {
