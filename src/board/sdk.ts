@@ -31,7 +31,7 @@ const indexFile = (path: string, sha256: string): SdkFile => ({
   sha256
 })
 
-const SDK_VERSION = "0.8.0"
+const SDK_VERSION = "0.9.2"
 
 /** Each module of the release and its SHA-256. */
 const SDK_MODULES: readonly (readonly [string, string])[] = [
@@ -39,18 +39,18 @@ const SDK_MODULES: readonly (readonly [string, string])[] = [
   ["_backoff", "424c0e9793cac20f6d62c56eed1c75d8e20e515ef83322fcd938b0d5bc0f9a70"],
   ["_capability", "bfeb819beda64f0c419dd1e5faf52c7260342b521babfff176e0305bc5cbeec3"],
   ["_credential", "d8a6a933b3b0a3a69637976924687256f59b051ec66e3ef556238a11ecde5a94"],
-  ["_device", "76333df337eb008b06d48ce5c9521fa965c94f9b6ab2bdf80364d2b59ed13576"],
+  ["_device", "8e75077ce0eb99bcfca5652f790c1b48bfbe934a5a7561ed5375a38d171a1d4f"],
   ["_errors", "1952c3b118f8d0c121e3925435171ec20ed11d96b07ceb08601eabd80a679811"],
-  ["_micropython", "4670420bc8b795292f5b3e62ef0b153a3b2d3c04d9078ef02f03c98f5a9d05a5"],
+  ["_micropython", "e7e2f847aeb21a60f240357e0f508d7e5cfb4d1c18e360cb4a35c2f32cc916ae"],
   ["_onboard", "cf0364075a3fdc899704cf9f70461aee56442c228698a3af799303a1554a72e8"],
   ["_provision", "0b039f33a354a9552ca8302562b2263c33ccfc98d58306fa27cd549cc553be44"],
   ["_roots", "76c07bf0f2b9267b8ed3cc5f96800b4c690bde6dd78dcf600d4d73093c15c0a8"],
   ["_subject", "6aa20f20b336dc89c6790293d66d224f686fde6b4e38c6dc01621477d1e4cc72"],
-  ["_time", "d7bcc5a5c2fa8e9c1909644fce69c960688725f5dcdb90b78eaf557c1f69e4f6"],
+  ["_time", "7af5a7a627e00423dd4908dcb34cc3814a8fae6ef0a539fad15e3b4a10c1a9ab"],
   ["board", "d32e166da6737b97582172f1b1d70c2726e666998c162e74e39cc08c2dd6a83c"],
-  ["esp32", "cbb5bd384a18a06bcf48f08200a2b55d16387f9da83bab97a053c5b0713adf21"],
-  ["interfaces", "e48c0bb4aa064b83ccdb7b17e2fe3cf6e5c46b921d0fd3900db52253b78cec6c"],
-  ["pico", "617a84422aeba3d34d4e3348cea363d63443934b7853dfd4c8357533beac4d8f"],
+  ["esp32", "0ce9bd2e8758be54c724698c6bfd71a3fc0831450b311b5b7dab778ee8727ccd"],
+  ["interfaces", "f2c0224899abdb26ea68b0fa882fe7b5440aacdf5c12e67af28a1d20df34e526"],
+  ["pico", "7a513cbb429d31c5716c5dc65a903a41e7bf069a132354aa08fde936112456fd"],
   ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"],
   ["virtual", "9689951dc6f95d6d8a3e0c72e94a73d2bfe170440acc999872d1f7b91c7a3f98"]
 ]
