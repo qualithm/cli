@@ -84,13 +84,24 @@ export const deleteTeam = defineTool({
 /** Reads the latest state of every device in a team. */
 export const getTeamDeviceState = defineTool({
   name: "get_team_device_state",
-  description: "Read the latest online/metrics snapshot of every device in a team.",
+  description:
+    "Read whether each device in a team is online, when it was last seen, and its latest metrics. Without an id, it's the team this server acts on.",
   mutating: false,
-  input: { teamId: z.string().min(1).describe("id of the team to read device state for") },
+  input: {
+    teamId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "id of the team to read device state for; empty means the team this server acts on"
+      ),
+    ...pageInput
+  },
   run: async (session, input) => {
+    const { teamId, ...page } = input
     const { data } = await session.client
       .api(DevicesApi)
-      .listTeamDeviceStates({ teamId: input.teamId })
+      .listTeamDeviceStates({ teamId: teamId ?? (await session.teamId()), ...page })
     return data
   }
 })

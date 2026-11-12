@@ -100,7 +100,7 @@ Flags, accepted by every verb before or after its arguments:
 Resources and verbs:
   authority  list | create | revoke <id>
   credential list | create | cert | rotate | revoke
-  device     list | get <id> | create | update <id> | delete <id>
+  device     list | get <id> | state | create | update <id> | delete <id>
   enrollment list | create | revoke <id>
   scope      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
