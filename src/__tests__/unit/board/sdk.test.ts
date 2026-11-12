@@ -26,8 +26,8 @@ describe("DEVICE_SDK", () => {
     }
   })
 
-  it("installs device-sdk-py 0.8.0 with its ESP32 adapters", () => {
-    expect(DEVICE_SDK.version).toBe("0.8.0")
+  it("installs device-sdk-py 0.9.2, which keeps its session across credential renewal", () => {
+    expect(DEVICE_SDK.version).toBe("0.9.2")
     const paths = DEVICE_SDK.files.map((f) => f.path)
     expect(paths).toContain("/lib/qualithm_device/esp32.mpy")
     expect(paths).toContain("/lib/qualithm_device/_onboard.mpy")

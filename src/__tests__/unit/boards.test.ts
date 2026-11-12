@@ -360,7 +360,8 @@ describe("qualithm board", () => {
       Promise.resolve([
         { state: "micropython", port: "/dev/cu.pico", serialNumber: "abc" },
         { state: "micropython", port: "/dev/cu.anon" },
-        { state: "bootsel", drive: "/Volumes/RP2350" }
+        { state: "bootsel", drive: "/Volumes/RP2350" },
+        { state: "bootsel", drive: "/Volumes/RP2350 1", serialNumber: "A6AFD22C8A7C3EF8" }
       ])
     const c = capture({ client: clientOf(ops) })
     expect(await run(["board", "list"], c)).toBe(0)
@@ -368,6 +369,7 @@ describe("qualithm board", () => {
     expect(c.out()).toMatch(/micropython\s+abc\s+\/dev\/cu\.pico/)
     expect(c.out()).toMatch(/micropython\s+-\s+\/dev\/cu\.anon/)
     expect(c.out()).toMatch(/bootsel\s+-\s+\/Volumes\/RP2350/)
+    expect(c.out()).toMatch(/bootsel\s+A6AFD22C8A7C3EF8\s+\/Volumes\/RP2350 1/)
     const j = capture({ client: clientOf(ops) })
     expect(await run(["board", "list", "--json"], j)).toBe(0)
     const listed = JSON.parse(j.out()) as { ok: boolean; data: unknown[] }
