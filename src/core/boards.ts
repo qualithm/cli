@@ -12,7 +12,7 @@ import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
 import { loadSdk } from "../board/sdk.ts"
-import type { ControlSerialPort, SerialPort } from "../board/serial.ts"
+import { type ControlSerialPort, PortClosedError, type SerialPort } from "../board/serial.ts"
 import {
   probeBoard,
   type ProjectFile,
@@ -79,7 +79,7 @@ export type BoardOps = {
 /** What the board operations reach for. */
 export type BoardDeps = {
   list: () => Promise<Board[]>
-  open: (path: string) => Promise<SerialPort>
+  open: (path: string) => Promise<SerialPort | ControlSerialPort>
   flash: (serialNumber?: string) => Promise<FlashResult>
   repl: RawReplConfig
   /** How long a reset board may take to come back running. */
@@ -88,6 +88,10 @@ export type BoardDeps = {
   sleep: (ms: number) => Promise<void>
   /** How long one log read waits for bytes. */
   read_wait_ms: number
+  /** How long an ESP32 restarting on its bridge's port stays quiet once it has booted. */
+  boot_quiet_ms: number
+  /** The longest an ESP32's port stays open after a reset, waiting for it to boot. */
+  boot_timeout_ms: number
   /** How many output chunks each board's buffer keeps. */
   max_chunks: number
   /** The device SDK files every deploy puts beside the project. */
@@ -153,6 +157,11 @@ function same(a: Running, b: Board): b is Running {
 }
 
 async function backRunning(deps: BoardDeps, board: Running): Promise<Running> {
+  if (board.state === "esp32") {
+    // Its USB-serial bridge or USB JTAG stays on USB while the chip restarts, and the reset
+    // already read the chip's boot to the end.
+    return board
+  }
   // The board drops off USB as it restarts; wait for it to leave, then to return.
   const deadline = Date.now() + deps.appear_timeout_ms
   let gone = false
@@ -174,25 +183,65 @@ async function backRunning(deps: BoardDeps, board: Running): Promise<Running> {
 }
 
 /**
+ * Reads an ESP32's port until the chip has booted after a reset: until it has printed something
+ * and then gone quiet, or for at most `boot_timeout_ms`. An ESP32-C6 on its USB JTAG halts in
+ * its ROM when the port closes while it boots.
+ *
+ * @param port - the board's open port
+ * @param deps - the timings
+ */
+async function awaitBoot(port: SerialPort, deps: BoardDeps): Promise<void> {
+  const deadline = Date.now() + deps.boot_timeout_ms
+  let heard = false
+  let quietSince = Date.now()
+  while (Date.now() < deadline) {
+    let bytes: Uint8Array
+    try {
+      bytes = await port.read(deps.read_wait_ms)
+    } catch (error) {
+      if (error instanceof PortClosedError) {
+        return
+      }
+      throw error
+    }
+    if (bytes.length > 0) {
+      heard = true
+      quietSince = Date.now()
+    } else if (heard && Date.now() - quietSince >= deps.boot_quiet_ms) {
+      return
+    }
+  }
+}
+
+/**
  * Board operations over `deps`.
  *
  * @param deps - what to reach for
  * @returns the operations
  */
 export function boardOps(deps: BoardDeps): BoardOps {
+  const open = async (board: Running): Promise<SerialPort> => {
+    const port = await deps.open(board.port)
+    // An ESP32's USB-serial bridge or USB JTAG wires DTR and RTS to the chip's EN and boot pins,
+    // and macOS can open the port with EN held low, so the chip sits halted in its ROM.
+    if (board.state === "esp32" && "setSignals" in port) {
+      await port.setSignals({ dtr: false, rts: false })
+    }
+    return port
+  }
   const withBoard = async <T>(
     serialNumber: string | undefined,
-    work: (port: SerialPort) => Promise<T>
+    work: (port: SerialPort, board: Running) => Promise<T>
   ): Promise<{ board: Running; result: T }> => {
     const board = pickRunning(await deps.list(), serialNumber)
-    const port = await deps.open(board.port)
+    const port = await open(board)
     try {
-      return { board, result: await work(port) }
+      return { board, result: await work(port, board) }
     } finally {
       await port.close()
     }
   }
-  const taps = new Taps({ ...deps, pick: pickRunning })
+  const taps = new Taps({ ...deps, open, pick: pickRunning })
   // An ESP32's USB identity doesn't say what it runs; a Pico running MicroPython says so itself.
   const runsMicroPython = async (board: Board): Promise<boolean> => {
     if (board.state !== "esp32") {
@@ -215,7 +264,12 @@ export function boardOps(deps: BoardDeps): BoardOps {
     flash: async (serialNumber) => taps.hold(async () => deps.flash(serialNumber)),
     reset: async (serialNumber) =>
       taps.hold(async () => {
-        const { board } = await withBoard(serialNumber, async (port) => resetBoard(port, deps.repl))
+        const { board } = await withBoard(serialNumber, async (port, target) => {
+          await resetBoard(port, deps.repl)
+          if (target.state === "esp32") {
+            await awaitBoot(port, deps)
+          }
+        })
         return ref(await backRunning(deps, board))
       }),
     run: async (serialNumber, code) =>
@@ -277,6 +331,8 @@ export function defaultBoardOps(): BoardOps {
     poll_ms: 250,
     sleep: async (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     read_wait_ms: 100,
+    boot_quiet_ms: 1000,
+    boot_timeout_ms: 5000,
     max_chunks: 5000,
     sdk: async () => loadSdk()
   })
