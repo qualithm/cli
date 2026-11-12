@@ -206,3 +206,55 @@ export async function listSerialPorts(
   }
   throw new CliError(`listing boards isn't supported on ${host.platform}`, "error")
 }
+
+/** Espressif's USB vendor ID. */
+export const ESPRESSIF_VENDOR_ID = "303a"
+/** The ESP32's built-in USB serial and JTAG unit, which its ROM and MicroPython both use. */
+export const USB_JTAG_SERIAL_PRODUCT_ID = "1001"
+/** MicroPython's own USB serial port on an ESP32-S3. */
+export const MICROPYTHON_ESP32_PRODUCT_ID = "4001"
+/** USB serial bridges ESP32 boards carry in front of the chip's UART: WCH's CH9102. */
+const UART_BRIDGES: readonly (readonly [string, string])[] = [["1a86", "55d4"]]
+
+/**
+ * Whether a USB serial port is an ESP32 whose firmware its USB identity doesn't name.
+ *
+ * @param port - the port
+ * @returns true for the built-in USB serial unit and the bridges ESP32 boards carry
+ */
+export function isEsp32Port(port: SerialInfo): boolean {
+  if (port.vendorId === ESPRESSIF_VENDOR_ID) {
+    return port.productId === USB_JTAG_SERIAL_PRODUCT_ID
+  }
+  return UART_BRIDGES.some(([v, p]) => port.vendorId === v && port.productId === p)
+}
+
+/**
+ * Whether a USB port runs MicroPython on an ESP32, as an ESP32-S3 shows by its own product ID.
+ *
+ * @param port - the port
+ * @returns true for MicroPython's ESP32 USB port
+ */
+export function isMicroPythonEsp32Port(port: SerialInfo): boolean {
+  return port.vendorId === ESPRESSIF_VENDOR_ID && port.productId === MICROPYTHON_ESP32_PRODUCT_ID
+}
+
+const hexOnly = (serial: string): string => serial.replace(/[^0-9a-f]/gi, "").toLowerCase()
+const MIN_SERIAL_DIGITS = 8
+
+/**
+ * Whether two USB serial numbers name one board. An ESP32-S3 reports its MAC as
+ * `44:1B:F6:F5:52:1C` from its ROM and as `441bf6f5521c0000` from MicroPython, so the hex digits
+ * of the shorter must start the longer.
+ *
+ * @param a - one serial number
+ * @param b - the other
+ * @returns whether they match
+ */
+export function sameSerial(a: string, b: string): boolean {
+  const [x, y] = [hexOnly(a), hexOnly(b)]
+  if (x.length < MIN_SERIAL_DIGITS || y.length < MIN_SERIAL_DIGITS) {
+    return a.toLowerCase() === b.toLowerCase()
+  }
+  return x.startsWith(y) || y.startsWith(x)
+}

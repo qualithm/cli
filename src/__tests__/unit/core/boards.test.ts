@@ -42,7 +42,9 @@ describe("pickRunning", () => {
   })
 
   it("says to plug a board in when there is none", () => {
-    expect(() => pickRunning([])).toThrow("no board found: plug in a Pico 2 W running MicroPython")
+    expect(() => pickRunning([])).toThrow(
+      "no board found: plug in an ESP32, or a Pico 2 W running MicroPython"
+    )
   })
 })
 
@@ -200,6 +202,77 @@ describe("boardOps", () => {
       flashed: "1.29.0"
     })
     expect(board.written).toEqual([])
+  })
+
+  const esp: Board = {
+    state: "esp32",
+    port: "/dev/cu.c3",
+    serialNumber: "54FC019337",
+    vendorId: "1a86",
+    productId: "55d4"
+  }
+  const RELEASE = "import os\nprint(os.uname().release)"
+
+  it("deploys to an ESP32 already running the release without flashing it", async () => {
+    const board = new FakeBoard({ [RELEASE]: { stdout: "1.29.0\r\n" } })
+    const result = await ops(board, [[esp]]).deploy(
+      "54fc019337",
+      [{ path: "/main.py", bytes: new Uint8Array() }],
+      false
+    )
+    expect(result).toMatchObject({ board: { port: "/dev/cu.c3" }, written: ["/main.py"] })
+    expect(result.flashed).toBeUndefined()
+  })
+
+  it("flashes an ESP32 that runs another release or doesn't answer, then deploys", async () => {
+    for (const reply of [{ stdout: "1.24.1\r\n" }, "silent" as const]) {
+      const board = new FakeBoard({ [RELEASE]: reply })
+      const flashed: string[] = []
+      const o = ops(board, [[esp]], {
+        repl: { ...fast, enter_timeout_ms: 50, exec_timeout_ms: 50 },
+        flash: async (serial) => {
+          flashed.push(serial ?? "-")
+          board.answers = true
+          return Promise.resolve({ port: "/dev/cu.c3", version: "1.29.0", machine: "C3" })
+        }
+      })
+      if (reply === "silent") {
+        board.answers = false
+      }
+      await expect(
+        o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+      ).resolves.toMatchObject({ flashed: "1.29.0" })
+      expect(flashed).toEqual(["-"])
+    }
+  })
+
+  it("says an ESP32 would be flashed on a dry run, and probes it as blank", async () => {
+    const board = new FakeBoard({ [RELEASE]: { stdout: "1.20.0\r\n" } })
+    expect(
+      await ops(board, [[esp]]).deploy(
+        undefined,
+        [{ path: "/main.py", bytes: new Uint8Array() }],
+        true
+      )
+    ).toEqual({
+      board: { port: "/dev/cu.c3", serialNumber: "54FC019337" },
+      written: ["/main.py"],
+      removed: [],
+      unchanged: 0,
+      flashed: "1.29.0"
+    })
+    expect(await ops(board, [[esp]]).probe(undefined)).toEqual({
+      blank: true,
+      credential: false,
+      claimCode: false
+    })
+  })
+
+  it("passes on an error that isn't the board's", async () => {
+    const o = ops(new FakeBoard(), [[esp]], {
+      open: async () => Promise.reject(new Error("ffi broke"))
+    })
+    await expect(o.probe(undefined)).rejects.toThrow("ffi broke")
   })
 
   it("probes a blank board without opening it, and a running one over the REPL", async () => {

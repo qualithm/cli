@@ -207,4 +207,69 @@ describe("listBoards", () => {
       { state: "bootsel", drive: "/Volumes/RP2350", model: "Raspberry Pi RP2350" }
     ])
   })
+
+  it("lists ESP32 boards, naming an S3 running MicroPython by its own USB port", async () => {
+    const device = (
+      id: number,
+      vendor: number,
+      product: number,
+      serial: string,
+      port: string
+    ): string[] => [
+      `+-o Board@0011000${String(id)}  <class IOUSBHostDevice, id 0x${String(id)}>`,
+      `  |   "idProduct" = ${String(product)}`,
+      `  |   "idVendor" = ${String(vendor)}`,
+      `  |   "USB Serial Number" = "${serial}"`,
+      `  +-o IOSerialBSDClient  <class IOSerialBSDClient, id 0x${String(id + 10)}>`,
+      `        "IOCalloutDevice" = "${port}"`
+    ]
+    const text = [
+      ...device(1, 0x303a, 0x4001, "441bf6f5521c0000", "/dev/cu.s3"),
+      ...device(2, 0x303a, 0x1001, "9C:CC:01:33:91:AC", "/dev/cu.c6"),
+      ...device(3, 0x1a86, 0x55d4, "54FC019337", "/dev/cu.c3"),
+      ...device(4, 0x303a, 0x0002, "other", "/dev/cu.other")
+    ].join("\n")
+    const host: DiscoverHost = {
+      platform: "darwin",
+      run: async () => Promise.resolve(text),
+      readdir: async () => Promise.resolve([]),
+      readFile: async () => Promise.reject(new Error("ENOENT")),
+      realpath: async (path) => Promise.resolve(path)
+    }
+    await expect(listBoards(host)).resolves.toEqual([
+      {
+        state: "micropython",
+        port: "/dev/cu.s3",
+        serialNumber: "441bf6f5521c0000",
+        family: "esp32"
+      },
+      {
+        state: "esp32",
+        port: "/dev/cu.c6",
+        serialNumber: "9C:CC:01:33:91:AC",
+        vendorId: "303a",
+        productId: "1001"
+      },
+      {
+        state: "esp32",
+        port: "/dev/cu.c3",
+        serialNumber: "54FC019337",
+        vendorId: "1a86",
+        productId: "55d4"
+      }
+    ])
+  })
+})
+
+describe("RawRepl.enter", () => {
+  it("interrupts again while a board that reset on open is still booting", async () => {
+    const board = new FakeBoard({ "print(1)": { stdout: "1\r\n" } })
+    board.answers = false
+    setTimeout(() => {
+      board.answers = true
+    }, 60)
+    const config = { ...fast, interrupt_retry_ms: 10 }
+    expect(await runCode(board, "print(1)", config)).toBe("1\r\n")
+    expect(board.written.filter((w) => w.includes("\x01")).length).toBeGreaterThan(1)
+  })
 })

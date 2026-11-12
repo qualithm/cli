@@ -1,5 +1,9 @@
 import { LED_OFF } from "../../../board/raw-repl.ts"
-import { PortClosedError, type SerialPort } from "../../../board/serial.ts"
+import {
+  type ControlSerialPort,
+  type ModemSignals,
+  PortClosedError
+} from "../../../board/serial.ts"
 
 /** What the fake board does with a piece of code: print, raise, or never answer. */
 export type Reply = { stdout?: string; stderr?: string } | "silent"
@@ -8,10 +12,12 @@ export type Reply = { stdout?: string; stderr?: string } | "silent"
  * A serial port with a MicroPython raw REPL behind it. Code in `replies` gets that reply; any
  * other code prints nothing.
  */
-export class FakeBoard implements SerialPort {
+export class FakeBoard implements ControlSerialPort {
   readonly path = "/dev/fake"
   readonly ran: string[] = []
   readonly written: string[] = []
+  /** Each modem-line change and speed the port was asked for, in order. */
+  readonly controls: (ModemSignals | number)[] = []
   closed = false
   /** How many soft resets the board took in the raw REPL. */
   softResets = 0
@@ -32,6 +38,16 @@ export class FakeBoard implements SerialPort {
 
   constructor(replies: Readonly<Record<string, Reply>> = {}) {
     this.#replies = replies
+  }
+
+  async setSignals(signals: ModemSignals): Promise<void> {
+    this.controls.push(signals)
+    return Promise.resolve()
+  }
+
+  async setBaudRate(baud: number): Promise<void> {
+    this.controls.push(baud)
+    return Promise.resolve()
   }
 
   async write(data: Uint8Array): Promise<void> {

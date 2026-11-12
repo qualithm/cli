@@ -1,15 +1,18 @@
+import { sameSerial } from "../board/discover.ts"
+import { MICROPYTHON_ESP32_VERSION } from "../board/esp32.ts"
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import {
   defaultFlashConfig,
   flashMicroPython,
   type FlashResult,
+  isEsp32,
   pickBoard
 } from "../board/flash.ts"
 import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
 import { loadSdk } from "../board/sdk.ts"
-import type { SerialPort } from "../board/serial.ts"
+import type { ControlSerialPort, SerialPort } from "../board/serial.ts"
 import {
   probeBoard,
   type ProjectFile,
@@ -91,10 +94,12 @@ export type BoardDeps = {
   sdk: () => Promise<ProjectFile[]>
 }
 
-type Running = Extract<Board, { state: "micropython" }>
+/** A board that runs MicroPython, or an ESP32 that may: a verb finds out when it talks to it. */
+type Running = Extract<Board, { state: "micropython" | "esp32" }>
 
 /**
- * Picks the running board a verb acts on: the one with `serialNumber`, or the only one.
+ * Picks the running board a verb acts on: the one with `serialNumber`, or the only one. An ESP32
+ * counts, since its USB identity doesn't say whether it runs MicroPython.
  *
  * @param boards - the boards plugged in
  * @param serialNumber - which board, when more than one is plugged in
@@ -102,10 +107,11 @@ type Running = Extract<Board, { state: "micropython" }>
  * @throws {CliError} when no running board matches, or several do and none is named
  */
 export function pickRunning(boards: Board[], serialNumber?: string): Running {
-  const running = boards.filter((b): b is Running => b.state === "micropython")
+  const running = boards.filter((b): b is Running => b.state !== "bootsel")
   if (serialNumber !== undefined) {
-    const wanted = serialNumber.toLowerCase()
-    const board = running.find((b) => b.serialNumber?.toLowerCase() === wanted)
+    const board = running.find(
+      (b) => b.serialNumber !== undefined && sameSerial(b.serialNumber, serialNumber)
+    )
     if (board === undefined) {
       throw new CliError(`no running board with serial number ${serialNumber}`, "not_found")
     }
@@ -117,7 +123,7 @@ export function pickRunning(boards: Board[], serialNumber?: string): Running {
     throw new CliError(
       waiting
         ? "the board is in BOOTSEL and runs nothing yet: flash it first"
-        : "no board found: plug in a Pico 2 W running MicroPython",
+        : "no board found: plug in an ESP32, or a Pico 2 W running MicroPython",
       "not_found"
     )
   }
@@ -138,12 +144,12 @@ function ref(board: Running): BoardRef {
 }
 
 function same(a: Running, b: Board): b is Running {
-  if (b.state !== "micropython") {
+  if (b.state === "bootsel") {
     return false
   }
-  return a.serialNumber === undefined
+  return a.serialNumber === undefined || b.serialNumber === undefined
     ? b.port === a.port
-    : b.serialNumber?.toLowerCase() === a.serialNumber.toLowerCase()
+    : sameSerial(a.serialNumber, b.serialNumber)
 }
 
 async function backRunning(deps: BoardDeps, board: Running): Promise<Running> {
@@ -187,6 +193,23 @@ export function boardOps(deps: BoardDeps): BoardOps {
     }
   }
   const taps = new Taps({ ...deps, pick: pickRunning })
+  // An ESP32's USB identity doesn't say what it runs; a Pico running MicroPython says so itself.
+  const runsMicroPython = async (board: Board): Promise<boolean> => {
+    if (board.state !== "esp32") {
+      return true
+    }
+    try {
+      const { result } = await withBoard(board.serialNumber, async (port) =>
+        runCode(port, "import os\nprint(os.uname().release)", deps.repl)
+      )
+      return result.trim() === MICROPYTHON_ESP32_VERSION
+    } catch (error) {
+      if (error instanceof CliError) {
+        return false
+      }
+      throw error
+    }
+  }
   return {
     list: deps.list,
     flash: async (serialNumber) => taps.hold(async () => deps.flash(serialNumber)),
@@ -205,7 +228,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
     probe: async (serialNumber) =>
       taps.hold(async () => {
         const target = pickBoard(await deps.list(), serialNumber)
-        if (target.state === "bootsel") {
+        if (target.state === "bootsel" || !(await runsMicroPython(target))) {
           return { blank: true, credential: false, claimCode: false }
         }
         const { result } = await withBoard(serialNumber, async (port) =>
@@ -218,18 +241,15 @@ export function boardOps(deps: BoardDeps): BoardOps {
         const files = [...project, ...(await deps.sdk())]
         let flashed: string | undefined
         const target = pickBoard(await deps.list(), serialNumber)
-        if (target.state === "bootsel") {
+        if (target.state === "bootsel" || !(await runsMicroPython(target))) {
           if (dryRun) {
             // A blank board would be flashed, then get every file.
             const written = files.map((f) => f.path)
-            const { version } = MICROPYTHON_PICO_2_W
-            return {
-              board: { port: target.drive },
-              written,
-              removed: [],
-              unchanged: 0,
-              flashed: version
-            }
+            const version = isEsp32(target)
+              ? MICROPYTHON_ESP32_VERSION
+              : MICROPYTHON_PICO_2_W.version
+            const at = target.state === "bootsel" ? { port: target.drive } : ref(target)
+            return { board: at, written, removed: [], unchanged: 0, flashed: version }
           }
           flashed = (await deps.flash(serialNumber)).version
         }
@@ -247,7 +267,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
 
 /** The real machine's board operations. */
 export function defaultBoardOps(): BoardOps {
-  const open = async (path: string): Promise<SerialPort> => openSerial(path)
+  const open = async (path: string): Promise<ControlSerialPort> => openSerial(path)
   return boardOps({
     list: async () => listBoards(),
     open,
