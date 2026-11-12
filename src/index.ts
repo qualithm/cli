@@ -4,6 +4,15 @@
  * @packageDocumentation
  */
 
+export type {
+  AgentHost,
+  AgentId,
+  AgentReport,
+  AgentsResult,
+  AgentStatus,
+  ExecResult,
+  ServerEntry
+} from "./agents/connect.ts"
 export type { CliIo } from "./cli.ts"
 export { COMMANDS, run, USAGE } from "./cli.ts"
 export type {
