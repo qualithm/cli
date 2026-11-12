@@ -112,15 +112,18 @@ export function isEsp32(board: Board): board is Esp32Board {
  */
 export function pickBoard(boards: Board[], serialNumber: string | undefined): Board {
   if (serialNumber !== undefined) {
-    const wanted = serialNumber.toLowerCase()
     const board = boards.find(
-      (b) =>
-        b.state !== "bootsel" && b.serialNumber !== undefined && sameSerial(b.serialNumber, wanted)
+      (b) => b.serialNumber !== undefined && sameSerial(b.serialNumber, serialNumber)
     )
     if (board === undefined) {
       throw new CliError(`no board with serial number ${serialNumber} is plugged in`, "not_found")
     }
     return board
+  }
+  // A blank board is what a flash or deploy that names no board is for.
+  const blank = boards.filter((b) => b.state === "bootsel")
+  if (blank.length === 1 && blank[0] !== undefined) {
+    return blank[0]
   }
   const [only, ...others] = boards
   if (only === undefined) {
@@ -181,7 +184,8 @@ export async function flashMicroPython(
   serialNumber?: string,
   firmware: Firmware = MICROPYTHON_PICO_2_W
 ): Promise<FlashResult> {
-  const board = pickBoard(await config.list(), serialNumber)
+  const boards = await config.list()
+  const board = pickBoard(boards, serialNumber)
   if (isEsp32(board)) {
     if (config.esp32 === undefined) {
       throw new CliError("flashing an ESP32 isn't set up here", "error")
@@ -199,12 +203,22 @@ export async function flashMicroPython(
     const late =
       "the board restarted into BOOTSEL but no drive appeared: unplug it, plug it back in, and flash again"
     drive = await waitFor(config, late, (boards) => {
-      const found = boards.find((b) => b.state === "bootsel")
+      const found = boards.find(
+        (b) =>
+          b.state === "bootsel" &&
+          (serial === undefined ||
+            b.serialNumber === undefined ||
+            sameSerial(b.serialNumber, serial))
+      )
       return found?.state === "bootsel" ? found.drive : undefined
     })
   } else {
-    ;({ drive } = board)
+    ;({ drive, serialNumber: serial } = board)
   }
+  // Without the board's ID, it is the one that wasn't running before.
+  const before = new Set(
+    boards.flatMap((b) => (b.state === "micropython" && b !== board ? [b.port] : []))
+  )
   await config.copy(drive, bytes)
   const back = await waitFor(
     config,
@@ -213,7 +227,9 @@ export async function flashMicroPython(
       boards.find(
         (b): b is Running =>
           b.state === "micropython" &&
-          (serial === undefined || b.serialNumber?.toLowerCase() === serial.toLowerCase())
+          (serial === undefined
+            ? !before.has(b.port)
+            : b.serialNumber !== undefined && sameSerial(b.serialNumber, serial))
       )
   )
   const reply = await withPort(config, back.port, async (port) =>
