@@ -124,7 +124,9 @@ describe("boardOps", () => {
   })
 
   it("resets an ESP32 and reads its boot before closing the port", async () => {
-    const board = new FakeBoard({ [reset]: { stdout: "ESP-ROM:esp32c6-20220919\r\nrig: booted\r\n" } })
+    const board = new FakeBoard({
+      [reset]: { stdout: "ESP-ROM:esp32c6-20220919\r\nrig: booted\r\n" }
+    })
     let readsAfterReset = 0
     const read = board.read.bind(board)
     board.read = async () => {
