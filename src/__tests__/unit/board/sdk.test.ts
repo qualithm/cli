@@ -26,6 +26,13 @@ describe("DEVICE_SDK", () => {
     }
   })
 
+  it("installs device-sdk-py 0.8.0 with its ESP32 adapters", () => {
+    expect(DEVICE_SDK.version).toBe("0.8.0")
+    const paths = DEVICE_SDK.files.map((f) => f.path)
+    expect(paths).toContain("/lib/qualithm_device/esp32.mpy")
+    expect(paths).toContain("/lib/qualithm_device/_onboard.mpy")
+  })
+
   it("names index files by their checksum's prefix", () => {
     const simple = DEVICE_SDK.files.find((f) => f.path === "/lib/umqtt/simple.mpy")
     expect(simple?.url).toBe("https://micropython.org/pi/v2/file/92/9240e244")
