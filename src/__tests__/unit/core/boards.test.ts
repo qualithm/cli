@@ -117,9 +117,16 @@ describe("boardOps", () => {
   }
   const reset = "import machine\nmachine.reset()"
 
-  it("releases an ESP32's EN and boot lines when it opens its port", async () => {
+  it("releases a bridge's RTS before its DTR, so opening the port leaves the chip running", async () => {
     const board = new FakeBoard({ "print(42)": { stdout: "42\r\n" } })
     await ops(board, [[esp32]]).run(undefined, "print(42)")
+    expect(board.controls).toEqual([{ rts: false }, { dtr: false }])
+  })
+
+  it("releases an ESP32's USB JTAG lines together when it opens its port", async () => {
+    const board = new FakeBoard({ "print(42)": { stdout: "42\r\n" } })
+    const jtag: Board = { ...esp32, vendorId: "303a", productId: "1001" }
+    await ops(board, [[jtag]]).run(undefined, "print(42)")
     expect(board.controls).toEqual([{ dtr: false, rts: false }])
   })
 

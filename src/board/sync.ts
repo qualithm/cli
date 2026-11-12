@@ -162,6 +162,12 @@ def _rm(p):
         os.remove(p)
     except OSError:
         pass
+def _rd(ds):
+    for d in ds:
+        try:
+            os.rmdir(d)
+        except OSError:
+            pass
 def _ls(d):
     try:
         names = os.listdir(d)
@@ -174,6 +180,28 @@ def _ls(d):
         else:
             print(p)
 `
+
+/** Folders a deploy never removes, even when it empties them. */
+const KEPT_DIRS = new Set(["/", "/lib"])
+
+/**
+ * The folders that removing `removed` may have emptied, deepest first: each removed file's
+ * parent folders, less `/`, `/lib` and any folder a project file is in. An empty folder at the
+ * root shadows a package of the same name in `/lib` (qualithm/pm#3663).
+ *
+ * @param removed - the files removed, absolute on the board
+ * @param kept - the project's files, absolute on the board
+ * @returns the folders to try removing; the board keeps any that still hold something
+ */
+export function emptiedDirs(removed: readonly string[], kept: readonly string[]): string[] {
+  const parents = (path: string): string[] => {
+    const parts = path.split("/").slice(1, -1)
+    return parts.map((_, i) => `/${parts.slice(0, i + 1).join("/")}`)
+  }
+  const keep = new Set([...KEPT_DIRS, ...kept.flatMap(parents)])
+  const dirs = new Set(removed.flatMap(parents).filter((d) => !keep.has(d)))
+  return [...dirs].sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b))
+}
 
 /** What a sync needs from a raw REPL session. */
 export type Repl = Pick<RawRepl, "exec">
@@ -261,6 +289,11 @@ export async function syncWith(
   for (const path of removed) {
     await run(repl, `_rm(${py(path)})`)
   }
+  const dirs = emptiedDirs(removed, paths)
+  if (dirs.length > 0) {
+    // os.rmdir refuses a folder that still holds something, so only emptied folders go.
+    await run(repl, `_rd(${JSON.stringify(dirs)})`)
+  }
   const manifest = JSON.stringify(paths)
   await run(repl, `_f = open(${py(MANIFEST)}, "w")\n_f.write(${py(manifest)})\n_f.close()`)
   return result
@@ -312,7 +345,7 @@ os.rename(${py(`${SETUP_PATH}.tmp`)}, ${py(SETUP_PATH)})`
 
 /**
  * Makes the board's files match a project: writes the files that differ, removes those a
- * previous deploy wrote that are gone, then soft-resets so `main.py` runs. Never touches the
+ * previous deploy wrote that are gone and any folder that leaves empty, then soft-resets so `main.py` runs. Never touches the
  * SDK's reserved files or files a deploy didn't write.
  *
  * @param port - the board's open serial port
