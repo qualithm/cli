@@ -18,7 +18,8 @@ export type LogPage = {
 /** What taps reach for. */
 export type TapDeps = {
   list: () => Promise<Board[]>
-  open: (path: string) => Promise<SerialPort>
+  /** Opens a board's port, ready to read. */
+  open: (board: Extract<Board, { state: "micropython" | "esp32" }>) => Promise<SerialPort>
   /** Picks the running board a verb acts on. */
   pick: (
     boards: Board[],
@@ -146,7 +147,7 @@ export class Taps {
       }
       return buffer
     }
-    const port = await this.#deps.open(board.port)
+    const port = await this.#deps.open(board)
     buffer.tap = this.#read(buffer, port)
     return buffer
   }
