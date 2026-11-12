@@ -305,7 +305,10 @@ export function boardOps(deps: BoardDeps): BoardOps {
             const at = target.state === "bootsel" ? { port: target.drive } : ref(target)
             return { board: at, written, removed: [], unchanged: 0, flashed: version }
           }
-          flashed = (await deps.flash(serialNumber)).version
+          const flash = await deps.flash(serialNumber)
+          flashed = flash.version
+          // A deploy that named no board took the only blank one; it now has an ID to name.
+          serialNumber ??= flash.serialNumber
         }
         const { board, result } = await withBoard(serialNumber, async (port) =>
           syncProject(port, files, dryRun, deps.repl, setup)

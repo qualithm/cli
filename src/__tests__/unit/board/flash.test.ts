@@ -186,10 +186,46 @@ describe("flashMicroPython", () => {
 
   it("asks which board when several are plugged in", async () => {
     const r = rig()
-    r.lists.push([running(), waiting])
+    r.lists.push([running(), running("other", "/dev/cu.other")])
     await expect(flashMicroPython(r.config, undefined, FIRMWARE)).rejects.toEqual(
       new CliError("2 boards are plugged in: name one by its serial number", "usage")
     )
+  })
+
+  const chip = "A6AFD22C8A7C3EF8"
+  const blank = (drive = "/Volumes/RP2350", serialNumber = chip): Board => ({
+    state: "bootsel",
+    drive,
+    serialNumber
+  })
+  const other = running("other", "/dev/cu.other")
+
+  it("flashes a BOOTSEL board named by its chip ID beside running boards", async () => {
+    const r = rig()
+    r.lists.push([other, blank("/Volumes/RP2350 1")], [other, running(chip.toLowerCase())])
+    const result = await flashMicroPython(r.config, chip.toLowerCase(), FIRMWARE)
+    expect(r.copies.map((c) => c.drive)).toEqual(["/Volumes/RP2350 1"])
+    expect(result).toMatchObject({ port: "/dev/cu.pico", serialNumber: chip.toLowerCase() })
+  })
+
+  it("takes the only BOOTSEL board when none is named, and finds it by what is new", async () => {
+    const r = rig()
+    r.lists.push([other, waiting], [other, running("new", "/dev/cu.new")])
+    const result = await flashMicroPython(r.config, undefined, FIRMWARE)
+    expect(r.copies.map((c) => c.drive)).toEqual(["/Volumes/RP2350"])
+    expect(result.port).toBe("/dev/cu.new")
+  })
+
+  it("copies to the drive of the board it restarted when several are in BOOTSEL", async () => {
+    const r = rig()
+    const mine = running(chip.toLowerCase())
+    r.lists.push(
+      [mine, blank("/Volumes/RP2350", "FFFFFFFFFFFFFFFF")],
+      [blank("/Volumes/RP2350", "FFFFFFFFFFFFFFFF"), blank("/Volumes/RP2350 1")],
+      [blank("/Volumes/RP2350", "FFFFFFFFFFFFFFFF"), mine]
+    )
+    await flashMicroPython(r.config, chip, FIRMWARE)
+    expect(r.copies.map((c) => c.drive)).toEqual(["/Volumes/RP2350 1"])
   })
 
   it("refuses a serial number no board has", async () => {

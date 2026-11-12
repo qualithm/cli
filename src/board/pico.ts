@@ -47,6 +47,8 @@ export type Board =
       drive: string
       /** The drive's model line. */
       model?: string
+      /** The chip's unique ID, when the OS reports the BOOTSEL device's USB serial number. */
+      serialNumber?: string
     }
 
 /**
@@ -78,7 +80,8 @@ export async function listBoards(host: DiscoverHost = defaultDiscoverHost): Prom
   const waiting: Board[] = (await findBootselDrives(host)).map((d: BootselDrive) => ({
     state: "bootsel",
     drive: d.path,
-    ...(d.model === undefined ? {} : { model: d.model })
+    ...(d.model === undefined ? {} : { model: d.model }),
+    ...(d.serialNumber === undefined ? {} : { serialNumber: d.serialNumber })
   }))
   return [...running, ...waiting]
 }
