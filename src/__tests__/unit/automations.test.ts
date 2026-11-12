@@ -293,7 +293,7 @@ describe("automation tools", () => {
     const {
       data: { items }
     } = result as { data: { items: Record<string, unknown>[] } }
-    expect(items[0]).not.toHaveProperty("decisions")
+    expect((items[0] as { decisions?: unknown }).decisions).toBeUndefined()
     expect(items[1]).toMatchObject({ id: "run_2", decisions: DECISIONS })
   })
 

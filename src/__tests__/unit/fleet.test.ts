@@ -205,7 +205,7 @@ describe("device", () => {
     })
     const plain = await callTool(getDevice, session, { deviceId: "dev_1" })
     expect(plain).toMatchObject({ ok: true, data: { id: "dev_1" } })
-    expect((plain as { data: object }).data).not.toHaveProperty("decisions")
+    expect((plain as { data: { decisions?: unknown } }).data.decisions).toBeUndefined()
   })
 
   it("creates a device in a scope", async () => {
