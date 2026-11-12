@@ -4,14 +4,14 @@ import { describe, expect, it } from "vitest"
 
 import { openSerial } from "../../../board/native.ts"
 import {
+  type ControlSerialPort,
   defaultSerialConfig,
   type Kernel32,
   type Libc,
   openPosix,
   openWindows,
   type PosixFs,
-  type SerialConfig,
-  type SerialPort
+  type SerialConfig
 } from "../../../board/serial.ts"
 import { CliError } from "../../../envelope.ts"
 
@@ -41,17 +41,25 @@ function errno(code: string): Error {
 }
 
 type PosixSetup = {
-  port: SerialPort
+  port: ControlSerialPort
+  /** The modem-line bits the fake port holds. */
+  lines: { bits: number }
   calls: string[]
   incoming: (Uint8Array | Error | 0)[]
   written: string[]
   closes: () => number
 }
 
-type WindowsSeen = { name?: string; dcb?: Uint8Array; timeouts?: Uint8Array; closed: number }
+type WindowsSeen = {
+  name?: string
+  dcb?: Uint8Array
+  timeouts?: Uint8Array
+  closed: number
+  escapes: number[]
+}
 
 type WindowsSetup = {
-  port: SerialPort
+  port: ControlSerialPort
   seen: WindowsSeen
   incoming: Uint8Array[]
   written: string[]
@@ -60,11 +68,14 @@ type WindowsSetup = {
 describe("openPosix", () => {
   function setup(
     fsOverrides: Partial<PosixFs> = {},
-    libcOverrides: Partial<Libc> = {}
+    libcOverrides: Partial<Libc> = {},
+    platform: "darwin" | "linux" = "darwin"
   ): PosixSetup {
     const mem = addresses()
     const calls: string[] = []
+    const lines = { bits: 0x2 | 0x4 | 0x100 }
     const libc: Libc = {
+      platform,
       tcgetattr: (fd, p) => {
         calls.push(`tcgetattr ${String(fd)}`)
         mem.at(p)[0] = 0xaa
@@ -75,6 +86,20 @@ describe("openPosix", () => {
       },
       tcsetattr: (fd, action) => {
         calls.push(`tcsetattr ${String(fd)} ${String(action)}`)
+        return 0
+      },
+      cfsetspeed: (_p, speed) => {
+        calls.push(`cfsetspeed ${String(speed)}`)
+        return 0
+      },
+      ioctl: (fd, request, arg) => {
+        const view = new DataView(mem.at(arg).buffer)
+        calls.push(`ioctl ${String(fd)} 0x${request.toString(16)}`)
+        if (request === 0x4004746a || request === 0x5415) {
+          view.setInt32(0, lines.bits, true)
+        } else {
+          lines.bits = view.getInt32(0, true)
+        }
         return 0
       },
       ...libcOverrides
@@ -110,8 +135,56 @@ describe("openPosix", () => {
       ...fsOverrides
     }
     const port = openPosix("/dev/cu.test", libc, mem.ptr, fs, quick)
-    return { port, calls, incoming, written, closes: () => closes }
+    return { port, lines, calls, incoming, written, closes: () => closes }
   }
+
+  it("drives DTR and RTS, keeping the other lines", async () => {
+    const { port, lines, calls } = setup()
+    await port.setSignals({ dtr: false })
+    expect(lines.bits).toBe(0x4 | 0x100)
+    await port.setSignals({ dtr: true, rts: false })
+    expect(lines.bits).toBe(0x2 | 0x100)
+    await port.setSignals({})
+    expect(lines.bits).toBe(0x2 | 0x100)
+    expect(calls.filter((c) => c.startsWith("ioctl")).slice(0, 2)).toEqual([
+      "ioctl 7 0x4004746a",
+      "ioctl 7 0x8004746d"
+    ])
+  })
+
+  it("uses linux's modem-line requests on linux", async () => {
+    const { port, lines, calls } = setup({}, {}, "linux")
+    await port.setSignals({ rts: false })
+    expect(lines.bits).toBe(0x2 | 0x100)
+    expect(calls.filter((c) => c.startsWith("ioctl"))).toEqual(["ioctl 7 0x5415", "ioctl 7 0x5418"])
+  })
+
+  it("throws when the board has gone as it sets the lines", async () => {
+    const { port } = setup({}, { ioctl: () => -1 })
+    await expect(port.setSignals({ dtr: true })).rejects.toThrow(
+      "the board on /dev/cu.test disconnected"
+    )
+    const late = setup({}, { ioctl: (_fd, request) => (request === 0x8004746d ? -1 : 0) })
+    await expect(late.port.setSignals({ dtr: true })).rejects.toThrow("disconnected")
+  })
+
+  it("changes speed with the rate on macOS and the speed code on linux", async () => {
+    const mac = setup()
+    await mac.port.setBaudRate(460800)
+    expect(mac.calls.slice(-2)).toEqual(["cfsetspeed 460800", "tcsetattr 7 0"])
+    const linux = setup({}, {}, "linux")
+    await linux.port.setBaudRate(921600)
+    expect(linux.calls.slice(-2)).toEqual([`cfsetspeed ${String(0o10007)}`, "tcsetattr 7 0"])
+  })
+
+  it("refuses a speed the system can't set", async () => {
+    const linux = setup({}, {}, "linux")
+    await expect(linux.port.setBaudRate(123)).rejects.toThrow("set /dev/cu.test to 123 baud")
+    let speeds = 0
+    const refused = setup({}, { cfsetspeed: () => (speeds++ === 0 ? 0 : -1) })
+    await expect(refused.port.setBaudRate(230400)).rejects.toThrow("230400 baud")
+    expect(() => setup({}, { cfsetspeed: () => -1 })).toThrow("configure serial port /dev/cu.test")
+  })
 
   it("opens non-blocking and switches the port to raw mode", () => {
     const { calls } = setup()
@@ -120,6 +193,7 @@ describe("openPosix", () => {
       `open /dev/cu.test ${String(flags)}`,
       "tcgetattr 7",
       "cfmakeraw 170",
+      "cfsetspeed 115200",
       "tcsetattr 7 0"
     ])
   })
@@ -239,7 +313,14 @@ describe("openPosix", () => {
 })
 
 describe("openPosix with the real file calls", () => {
-  const libc: Libc = { tcgetattr: () => 0, cfmakeraw: () => undefined, tcsetattr: () => 0 }
+  const libc: Libc = {
+    platform: "darwin",
+    tcgetattr: () => 0,
+    cfmakeraw: () => undefined,
+    tcsetattr: () => 0,
+    cfsetspeed: () => 0,
+    ioctl: () => 0
+  }
 
   it.skipIf(process.platform === "win32")(
     "opens, writes, reads and closes a real file",
@@ -258,7 +339,7 @@ describe("openWindows", () => {
     const mem = addresses()
     const incoming: Uint8Array[] = []
     const written: string[] = []
-    const seen: WindowsSeen = { closed: 0 }
+    const seen: WindowsSeen = { closed: 0, escapes: [] }
     const done = (p: number, n: number): void => {
       new DataView(mem.at(p).buffer).setUint32(0, n, true)
     }
@@ -297,12 +378,43 @@ describe("openWindows", () => {
         seen.closed++
         return 1
       },
+      escapeCommFunction: (_h, code) => {
+        seen.escapes.push(code)
+        return 1
+      },
       getLastError: () => 0,
       ...overrides
     }
     const port = openWindows("COM5", kernel32, mem.ptr, quick)
     return { port, seen, incoming, written }
   }
+
+  it("drives DTR and RTS through EscapeCommFunction", async () => {
+    const { port, seen } = setup()
+    await port.setSignals({ dtr: false, rts: true })
+    await port.setSignals({ dtr: true, rts: false })
+    await port.setSignals({})
+    expect(seen.escapes).toEqual([6, 3, 5, 4])
+  })
+
+  it("throws when the board has gone as it sets the lines", async () => {
+    const { port } = setup({ escapeCommFunction: () => 0 })
+    await expect(port.setSignals({ rts: true })).rejects.toThrow("the board on COM5 disconnected")
+  })
+
+  it("changes speed in the port's settings", async () => {
+    const { port, seen } = setup()
+    await port.setBaudRate(921600)
+    expect(new DataView((seen.dcb ?? new Uint8Array(28)).buffer).getUint32(4, true)).toBe(921600)
+    let calls = 0
+    const failing = setup({
+      setCommState: () => {
+        calls++
+        return calls === 1 ? 1 : 0
+      }
+    })
+    await expect(failing.port.setBaudRate(460800)).rejects.toThrow("set COM5 to 460800 baud")
+  })
 
   it("opens the port by its device name at 115200 8N1 with DTR on", () => {
     const { seen } = setup()

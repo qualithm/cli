@@ -1,13 +1,13 @@
 import { CliError } from "../envelope.ts"
 import {
+  type ControlSerialPort,
   defaultSerialConfig,
   type Kernel32,
   type Libc,
   openPosix,
   openWindows,
   type Ptr,
-  type SerialConfig,
-  type SerialPort
+  type SerialConfig
 } from "./serial.ts"
 
 const LIBC_PATHS: Readonly<Record<string, string>> = {
@@ -26,7 +26,7 @@ function unsupported(platform: string): CliError {
  * @param path - the port: a device path, or `COMn` on Windows
  * @param platform - the OS; defaults to this one
  * @param config - polling settings
- * @returns the open port
+ * @returns the open port, which also drives its modem lines and speed
  * @throws {CliError} when not running under Bun, on an unsupported OS, or when the port can't be
  *   opened
  */
@@ -34,7 +34,7 @@ export async function openSerial(
   path: string,
   platform: NodeJS.Platform = process.platform,
   config: SerialConfig = defaultSerialConfig
-): Promise<SerialPort> {
+): Promise<ControlSerialPort> {
   if (typeof Bun === "undefined") {
     throw new CliError("talking to a board needs the qualithm binary, not node", "error")
   }
@@ -58,6 +58,7 @@ export async function openSerial(
       ReadFile: { args: [handle, "ptr", "u32", "ptr", "ptr"], returns: "i32" },
       WriteFile: { args: [handle, "ptr", "u32", "ptr", "ptr"], returns: "i32" },
       CloseHandle: { args: [handle], returns: "i32" },
+      EscapeCommFunction: { args: [handle, "u32"], returns: "i32" },
       GetLastError: { args: [], returns: "u32" }
     })
     const k = symbols as unknown as Record<string, (...args: unknown[]) => number>
@@ -73,6 +74,7 @@ export async function openSerial(
       writeFile: (handle, buffer, size, done) =>
         call("WriteFile", handle, buffer, size, done, null),
       closeHandle: (handle) => call("CloseHandle", handle),
+      escapeCommFunction: (handle, code) => call("EscapeCommFunction", handle, code),
       getLastError: () => call("GetLastError")
     }
     return openWindows(path, kernel32, ptr, config)
@@ -80,10 +82,28 @@ export async function openSerial(
   if (libc === undefined) {
     throw unsupported(platform)
   }
+  // FFI can't pass variadic arguments the way Apple's arm64 ABI wants, so on macOS it calls the
+  // syscall stub `ioctl` wraps, which takes its argument in a register.
+  const ioctl = platform === "darwin" ? "__ioctl" : "ioctl"
   const { symbols } = ffi.dlopen(libc, {
     tcgetattr: { args: ["i32", "ptr"], returns: "i32" },
     tcsetattr: { args: ["i32", "i32", "ptr"], returns: "i32" },
-    cfmakeraw: { args: ["ptr"], returns: "void" }
+    cfmakeraw: { args: ["ptr"], returns: "void" },
+    cfsetspeed: { args: ["ptr", "u64"], returns: "i32" },
+    [ioctl]: { args: ["i32", "u64", "ptr"], returns: "i32" }
   })
-  return openPosix(path, symbols as unknown as Libc, ptr, undefined, config)
+  const calls = symbols as unknown as Record<string, (...args: unknown[]) => number>
+  const posix: Libc = {
+    platform: platform === "linux" ? "linux" : "darwin",
+    tcgetattr: (fd, termios) => (calls.tcgetattr as (...a: unknown[]) => number)(fd, termios),
+    tcsetattr: (fd, action, termios) =>
+      (calls.tcsetattr as (...a: unknown[]) => number)(fd, action, termios),
+    cfmakeraw: (termios) => {
+      ;(calls.cfmakeraw as (...a: unknown[]) => number)(termios)
+    },
+    cfsetspeed: (termios, speed) =>
+      (calls.cfsetspeed as (...a: unknown[]) => number)(termios, speed),
+    ioctl: (fd, request, arg) => (calls[ioctl] as (...a: unknown[]) => number)(fd, request, arg)
+  }
+  return openPosix(path, posix, ptr, undefined, config)
 }

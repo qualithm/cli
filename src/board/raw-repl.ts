@@ -5,6 +5,8 @@ import { PortClosedError, type SerialPort } from "./serial.ts"
 export type RawReplConfig = {
   /** How long to wait for the raw REPL banner. */
   enter_timeout_ms: number
+  /** How long to wait for the banner before interrupting again. */
+  interrupt_retry_ms: number
   /** How long code may run before `exec` gives up. */
   exec_timeout_ms: number
   /** Bytes written before pausing, so the board's input buffer never overflows. */
@@ -16,6 +18,7 @@ export type RawReplConfig = {
 
 export const defaultRawReplConfig: RawReplConfig = {
   enter_timeout_ms: 3000,
+  interrupt_retry_ms: 500,
   exec_timeout_ms: 10000,
   chunk_bytes: 256,
   chunk_pause_ms: 10,
@@ -68,8 +71,21 @@ export class RawRepl {
    * @throws {CliError} with code `unavailable` when the board doesn't answer
    */
   async enter(): Promise<void> {
-    await this.#write(`\r${CTRL_C}${CTRL_C}${CTRL_A}`)
-    await this.#readUntil(BANNER, this.#config.enter_timeout_ms, "enter the raw REPL")
+    // A board can reset as its port opens, as an ESP32 behind a USB serial bridge does, and lose
+    // the interrupt while it boots; ask again until it answers.
+    const deadline = Date.now() + this.#config.enter_timeout_ms
+    for (;;) {
+      await this.#write(`\r${CTRL_C}${CTRL_C}${CTRL_A}`)
+      const wait = Math.min(this.#config.interrupt_retry_ms, deadline - Date.now())
+      try {
+        await this.#readUntil(BANNER, Math.max(wait, 0), "enter the raw REPL")
+        break
+      } catch (error) {
+        if (!(error instanceof CliError) || Date.now() >= deadline) {
+          throw error
+        }
+      }
+    }
     await this.#write(CTRL_D)
     await this.#readUntil(SOFT_REBOOT, this.#config.enter_timeout_ms, "soft-reset the board")
     await this.#readUntil(BANNER, this.#config.enter_timeout_ms, "enter the raw REPL")

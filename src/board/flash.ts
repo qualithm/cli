@@ -2,6 +2,13 @@ import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { CliError } from "../envelope.ts"
+import { sameSerial } from "./discover.ts"
+import {
+  defaultEsp32FlashConfig,
+  type Esp32Board,
+  type Esp32FlashConfig,
+  flashEsp32
+} from "./esp32.ts"
 import {
   defaultFirmwareConfig,
   type Firmware,
@@ -11,7 +18,7 @@ import {
 } from "./firmware.ts"
 import { type Board, enterBootsel, listBoards, runCode } from "./pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "./raw-repl.ts"
-import type { SerialPort } from "./serial.ts"
+import type { ControlSerialPort, SerialPort } from "./serial.ts"
 
 /** What flashing reaches for; the real machine by default. */
 export type FlashConfig = {
@@ -26,6 +33,8 @@ export type FlashConfig = {
   appear_timeout_ms: number
   poll_ms: number
   sleep: (ms: number) => Promise<void>
+  /** How an ESP32 is flashed; without it only a Pico can be. */
+  esp32?: Esp32FlashConfig
 }
 
 /** What a flash left on the board. */
@@ -83,8 +92,18 @@ async function waitFor<T>(
 }
 
 /**
- * Picks the board a flash acts on: the running one with `serialNumber`, or the only board,
- * running or in BOOTSEL.
+ * Whether a board is an ESP32, which esptool flashes, rather than a Pico.
+ *
+ * @param board - the board
+ * @returns true for an ESP32
+ */
+export function isEsp32(board: Board): board is Esp32Board {
+  return board.state === "esp32" || (board.state === "micropython" && board.family === "esp32")
+}
+
+/**
+ * Picks the board a flash acts on: the one with `serialNumber`, or the only board, running, in
+ * BOOTSEL, or an ESP32.
  *
  * @param boards - the boards plugged in
  * @param serialNumber - which board, when more than one is plugged in
@@ -95,7 +114,8 @@ export function pickBoard(boards: Board[], serialNumber: string | undefined): Bo
   if (serialNumber !== undefined) {
     const wanted = serialNumber.toLowerCase()
     const board = boards.find(
-      (b) => b.state === "micropython" && b.serialNumber?.toLowerCase() === wanted
+      (b) =>
+        b.state !== "bootsel" && b.serialNumber !== undefined && sameSerial(b.serialNumber, wanted)
     )
     if (board === undefined) {
       throw new CliError(`no board with serial number ${serialNumber} is plugged in`, "not_found")
@@ -105,7 +125,7 @@ export function pickBoard(boards: Board[], serialNumber: string | undefined): Bo
   const [only, ...others] = boards
   if (only === undefined) {
     throw new CliError(
-      "no board found: plug in a Pico 2 W, holding BOOTSEL if it has never been flashed",
+      "no board found: plug in an ESP32, or a Pico 2 W holding BOOTSEL if it has never been flashed",
       "not_found"
     )
   }
@@ -145,8 +165,9 @@ async function withPort<T>(
 }
 
 /**
- * Puts MicroPython on a Pico 2 W and checks it came back running that release. A running board
- * is restarted into BOOTSEL first; a blank one must already be in BOOTSEL.
+ * Puts MicroPython on a Pico 2 W or an ESP32 and checks it came back running that release. A
+ * running Pico is restarted into BOOTSEL first; a blank one must already be in BOOTSEL. An ESP32
+ * gets the build for its chip, whatever it ran before.
  *
  * @param config - what to reach for
  * @param serialNumber - which board, when more than one is plugged in
@@ -160,9 +181,15 @@ export async function flashMicroPython(
   serialNumber?: string,
   firmware: Firmware = MICROPYTHON_PICO_2_W
 ): Promise<FlashResult> {
-  // Fetch first, so a failed download never leaves a board waiting in BOOTSEL.
-  const bytes = await loadFirmware(firmware, config.firmware)
   const board = pickBoard(await config.list(), serialNumber)
+  if (isEsp32(board)) {
+    if (config.esp32 === undefined) {
+      throw new CliError("flashing an ESP32 isn't set up here", "error")
+    }
+    return flashEsp32(config.esp32, board)
+  }
+  // Fetch before restarting, so a failed download never leaves a board waiting in BOOTSEL.
+  const bytes = await loadFirmware(firmware, config.firmware)
   let drive: string
   let serial: string | undefined
   if (board.state === "micropython") {
@@ -213,9 +240,13 @@ export async function flashMicroPython(
  * @param open - opens a serial port
  * @returns the settings
  */
-export function defaultFlashConfig(open: (path: string) => Promise<SerialPort>): FlashConfig {
+export function defaultFlashConfig(
+  open: (path: string) => Promise<ControlSerialPort>
+): FlashConfig {
+  const list = async (): Promise<Board[]> => listBoards()
   return {
-    list: async () => listBoards(),
+    esp32: defaultEsp32FlashConfig(list, open),
+    list,
     open,
     copy: copyToDrive,
     firmware: defaultFirmwareConfig,

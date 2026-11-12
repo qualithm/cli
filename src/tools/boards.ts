@@ -142,7 +142,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "list_boards",
       description:
-        "List the boards plugged into this computer: Pico 2 Ws running MicroPython, and any waiting in BOOTSEL to be flashed.",
+        "List the boards plugged into this computer: Pico 2 Ws running MicroPython or waiting in BOOTSEL to be flashed, and ESP32-S3, C3 and C6 boards.",
       mutating: false,
       local: true,
       input: {},
@@ -150,7 +150,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     }),
     defineTool({
       name: "flash_board",
-      description: `Put MicroPython ${MICROPYTHON_PICO_2_W.version} on a plugged-in Pico 2 W, blank or running, and check it came back running that release.`,
+      description: `Put MicroPython ${MICROPYTHON_PICO_2_W.version} on a plugged-in Pico 2 W or ESP32-S3, C3 or C6, blank or running, and check it came back running that release. Flashing an ESP32 erases its files.`,
       mutating: true,
       local: true,
       input: { ...serialNumber, ...dryRunInput },
@@ -187,7 +187,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "deploy_project",
       description:
-        "Put a MicroPython project folder on a plugged-in Pico 2 W and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a blank board, and never touches the device's credential. With `virtual`, runs the project on this computer as a virtual device instead: no board, the host's network, and a device on the platform like any other; read its output with board_logs and serialNumber `virtual:<folder name>`.",
+        "Put a MicroPython project folder on a plugged-in Pico 2 W or ESP32-S3, C3 or C6 and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a board that doesn't run it, and never touches the device's credential. With `virtual`, runs the project on this computer as a virtual device instead: no board, the host's network, and a device on the platform like any other; read its output with board_logs and serialNumber `virtual:<folder name>`.",
       mutating: true,
       local: true,
       input: {
