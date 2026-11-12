@@ -24,7 +24,12 @@ voice produces UI text specifically. Agent-authoritative once landed.
   synonym is a second concept to the reader.
 - **US spelling.** All product text uses US English: "color", "canceled", "organization".
 - **Literal over clever.** Name the object the builder sees, not the mechanism: "Create token", not
-  "Mint token".
+  "Mint token". A technical term comes with the plain statement, never on its own.
+- **Low on the scale.** A routine event is a message or a notification, not an alert: "{automation
+  name} sent a notification", never "Alert from {automation name}". Keep "alert" for something that
+  needs action.
+- **The agent is a light mention.** Where UI text names the AI agent, it's something the builder
+  works with, never the subject of the sentence.
 - **The interface states the default.** Don't ask the builder to choose what the product can choose.
   A setting with a sensible default says what that default does.
 
@@ -74,9 +79,11 @@ Each object has one name on every surface. Use these, and add a new object here 
 ## Empty states
 
 - **Title:** "No {things} yet" whenever the builder can create one. Drop "yet" only when they can't:
-  "No invoices".
+  "No invoices". A first-run list the builder must fill to get started may invite instead: "Your
+  first device goes here".
 - **Body:** one sentence saying what the thing is or what happens first, then the action that fills
-  it. "An automation watches for something happening and does something about it."
+  it. "An automation watches for something happening and does something about it." Under "Your first
+  device goes here": "Create it, then connect it with the code you're given."
 - Use the shared empty-state component, not a bare line of text.
 
 ## Errors
@@ -91,8 +98,8 @@ Each object has one name on every surface. Use these, and add a new object here 
   in the CLI is wrong in the API.
 - **No dead ends.** "Something went wrong" is never complete on its own. Add what the builder can do
   next and a way back.
-- **Alert titles are short past-tense statements:** "Run not started", "Preferences not saved". The
-  body is full sentences with periods.
+- **Error alert titles are short past-tense statements:** "Run not started", "Preferences not
+  saved". The body is full sentences with periods.
 
 ## Destructive actions
 
@@ -116,7 +123,7 @@ Each object has one name on every surface. Use these, and add a new object here 
 ## Transactional email
 
 - **Subject:** a sentence-case statement about the reader's account, no brackets or tags: "Verify
-  your email", "Your plan will be downgraded soon".
+  your email", "Your plan will be downgraded soon", "{automation name} sent a notification".
 - **One CTA, verb-first, landing on a page that exists:** "Review invite". Don't link to a surface
   the product doesn't have.
 - **Greeting:** "Hi {name}," when a name is known, otherwise no greeting.
