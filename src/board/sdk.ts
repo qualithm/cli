@@ -31,24 +31,26 @@ const indexFile = (path: string, sha256: string): SdkFile => ({
   sha256
 })
 
-const SDK_VERSION = "0.3.1"
+const SDK_VERSION = "0.8.0"
 
 /** Each module of the release and its SHA-256. */
 const SDK_MODULES: readonly (readonly [string, string])[] = [
-  ["__init__", "5ad20f88fec73b21b1bac55593acc7e492de19a365a0dd2ee5a9b75ff2ccd999"],
+  ["__init__", "acedb0c11865fdc8273ec799614ca26ff540df7af020a017f6d5f03b5b284954"],
   ["_backoff", "424c0e9793cac20f6d62c56eed1c75d8e20e515ef83322fcd938b0d5bc0f9a70"],
-  ["_capability", "d67c2b42f06ef36390c076bd40c600271eb16973098c2dc1a5cfd6b1e04ccd58"],
-  ["_credential", "acb4c7a2ae566a41bf0e75bbeda6b164196863e09eb118158effff9ac3017caa"],
-  ["_device", "fc1534de42d93c2a2a484cb22f9e732e84542d9af14c4fd1d33af472b344c104"],
-  ["_errors", "5ca6bc4b558f05257cf74838a3cfe9d7ffdc9737210706a2254807b0a7aba3be"],
-  ["_micropython", "873f7eeae004c582919748d397ca9da770ecd4a22c5c3232df63625e3c1fe702"],
-  ["_provision", "1f273002c8f3c3f2515e94108312382e6b31f61f74b67c578fddfc60a2980a24"],
+  ["_capability", "bfeb819beda64f0c419dd1e5faf52c7260342b521babfff176e0305bc5cbeec3"],
+  ["_credential", "d8a6a933b3b0a3a69637976924687256f59b051ec66e3ef556238a11ecde5a94"],
+  ["_device", "76333df337eb008b06d48ce5c9521fa965c94f9b6ab2bdf80364d2b59ed13576"],
+  ["_errors", "1952c3b118f8d0c121e3925435171ec20ed11d96b07ceb08601eabd80a679811"],
+  ["_micropython", "4670420bc8b795292f5b3e62ef0b153a3b2d3c04d9078ef02f03c98f5a9d05a5"],
+  ["_onboard", "cf0364075a3fdc899704cf9f70461aee56442c228698a3af799303a1554a72e8"],
+  ["_provision", "0b039f33a354a9552ca8302562b2263c33ccfc98d58306fa27cd549cc553be44"],
   ["_roots", "76c07bf0f2b9267b8ed3cc5f96800b4c690bde6dd78dcf600d4d73093c15c0a8"],
-  ["_subject", "64fdfef573256093ee31fbe2ce5ab0994464d11606fe4f812465ec327b4e6280"],
+  ["_subject", "6aa20f20b336dc89c6790293d66d224f686fde6b4e38c6dc01621477d1e4cc72"],
   ["_time", "d7bcc5a5c2fa8e9c1909644fce69c960688725f5dcdb90b78eaf557c1f69e4f6"],
-  ["board", "f4d52db90817a6ff46af8a5babe8e10b2aed78c8f7eea8c8bbc9efd606120203"],
-  ["interfaces", "b6ddf6d4fb8bbd2b78e3208bbcf5381fad8f416402a439995bffa0bb328b2ee3"],
-  ["pico", "43435161eae56ea87796c409752daf7e345520f2eabf2c04fa50c185e0b6585f"],
+  ["board", "d32e166da6737b97582172f1b1d70c2726e666998c162e74e39cc08c2dd6a83c"],
+  ["esp32", "cbb5bd384a18a06bcf48f08200a2b55d16387f9da83bab97a053c5b0713adf21"],
+  ["interfaces", "e48c0bb4aa064b83ccdb7b17e2fe3cf6e5c46b921d0fd3900db52253b78cec6c"],
+  ["pico", "617a84422aeba3d34d4e3348cea363d63443934b7853dfd4c8357533beac4d8f"],
   ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"],
   ["virtual", "9689951dc6f95d6d8a3e0c72e94a73d2bfe170440acc999872d1f7b91c7a3f98"]
 ]
