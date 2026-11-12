@@ -173,10 +173,13 @@ async function backRunning(deps: BoardDeps, board: Running): Promise<Running> {
       return found
     }
     if (Date.now() >= deadline) {
-      if (found !== undefined) {
-        return found
-      }
-      throw new CliError("the board didn't come back running MicroPython in time", "unavailable")
+      // A board still on USB at the deadline never left it, so it never restarted.
+      throw new CliError(
+        gone
+          ? "the board didn't come back running MicroPython in time"
+          : "the board didn't restart: it never left USB",
+        "unavailable"
+      )
     }
     await deps.sleep(deps.poll_ms)
   }
