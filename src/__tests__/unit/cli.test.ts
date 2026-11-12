@@ -102,7 +102,7 @@ describe("token list", () => {
   it("exits with the usage code when no token is set", async () => {
     const c = capture({ env: {} })
     expect(await run(["token", "list"], c.io)).toBe(2)
-    expect(c.err()).toMatch(/^qualithm: api token missing/)
+    expect(c.err()).toBe("qualithm: not logged in: run qualithm login, or set QUALITHM_API_TOKEN\n")
   })
 
   it("takes the token, URL and team from flags", async () => {
@@ -168,7 +168,7 @@ describe("mcp", () => {
       }
     })
     expect(await run(["mcp"], c.io)).toBe(0)
-    expect(c.err()).toMatch(/^qualithm: api token missing.*; serving only the board tools\n$/)
+    expect(c.err()).toMatch(/^qualithm: not logged in: .*; serving only the board tools\n$/)
     expect(names.sort()).toEqual([
       "board_console",
       "board_logs",
