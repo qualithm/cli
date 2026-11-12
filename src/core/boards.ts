@@ -1,4 +1,4 @@
-import { sameSerial } from "../board/discover.ts"
+import { ESPRESSIF_VENDOR_ID, sameSerial } from "../board/discover.ts"
 import { MICROPYTHON_ESP32_VERSION } from "../board/esp32.ts"
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import {
@@ -225,7 +225,15 @@ export function boardOps(deps: BoardDeps): BoardOps {
     // An ESP32's USB-serial bridge or USB JTAG wires DTR and RTS to the chip's EN and boot pins,
     // and macOS can open the port with EN held low, so the chip sits halted in its ROM.
     if (board.state === "esp32" && "setSignals" in port) {
-      await port.setSignals({ dtr: false, rts: false })
+      if (board.vendorId === ESPRESSIF_VENDOR_ID) {
+        await port.setSignals({ dtr: false, rts: false })
+      } else {
+        // A bridge drives DTR before RTS. Dropping both at once passes through RTS high with DTR
+        // low, which pulls EN low and restarts the chip; releasing RTS first never does
+        // (qualithm/pm#3667). The port then closes with both low, so closing changes nothing.
+        await port.setSignals({ rts: false })
+        await port.setSignals({ dtr: false })
+      }
     }
     return port
   }
