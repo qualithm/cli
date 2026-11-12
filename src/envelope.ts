@@ -132,7 +132,11 @@ export function success(data?: unknown): Result {
  */
 export function failure(error: unknown): Result {
   // The platform client wraps whatever its `fetch` throws, so a dry run arrives as the cause.
-  if (error instanceof PlatformError && error.cause instanceof DryRunError) {
+  // A refused or missing sign-in is raised inside that `fetch` too.
+  if (
+    error instanceof PlatformError &&
+    (error.cause instanceof DryRunError || error.cause instanceof CliError)
+  ) {
     return failure(error.cause)
   }
   if (error instanceof DryRunError) {

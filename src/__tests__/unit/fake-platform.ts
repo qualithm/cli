@@ -1,3 +1,4 @@
+import type { CredentialStore, StoredLogin } from "../../auth/store.ts"
 import type { CliIo } from "../../cli.ts"
 import type { FetchAPI } from "../../platform.ts"
 
@@ -246,10 +247,34 @@ export function capture(
       },
       env: { QUALITHM_API_TOKEN: "qmt_x" },
       fetch,
+      credentials: memoryStore(),
       ...extra
     },
     out: () => out,
     err: () => err,
     requests
+  }
+}
+
+/**
+ * A secret store in memory, standing in for the OS keychain.
+ *
+ * @param entries - sign-ins already stored, by API origin
+ * @returns the store and its entries
+ */
+export function memoryStore(
+  entries = new Map<string, StoredLogin>()
+): CredentialStore & { entries: Map<string, StoredLogin> } {
+  return {
+    entries,
+    read: async (origin) => Promise.resolve(entries.get(origin)),
+    write: async (origin, login) => {
+      entries.set(origin, login)
+      return Promise.resolve()
+    },
+    clear: async (origin) => {
+      entries.delete(origin)
+      return Promise.resolve()
+    }
   }
 }
