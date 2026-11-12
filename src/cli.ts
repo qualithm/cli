@@ -2,6 +2,8 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util"
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
+import type { AgentHost } from "./agents/connect.ts"
+import { runAgents } from "./commands/agents.ts"
 import { applyCommands } from "./commands/apply.ts"
 import { authorityCommands } from "./commands/authorities.ts"
 import { type BoardIo, runBoard } from "./commands/boards.ts"
@@ -31,6 +33,8 @@ export type CliIo = {
   serveMcp?: (server: ReturnType<typeof buildMcpServer>) => Promise<void>
   /** What `qualithm board` talks to; defaults to the user's core and terminal. @internal */
   board?: Omit<BoardIo, "stdout" | "stderr">
+  /** The machine `qualithm agents` connects; defaults to this one. @internal */
+  agents?: AgentHost
   /** What `qualithm core run` reaches for; defaults to the real machine. @internal */
   core?: Omit<CoreIo, "stdout" | "stderr">
 }
@@ -74,6 +78,7 @@ Usage:
   qualithm deploy [dir]                 put a MicroPython project on a plugged-in board
   qualithm board <verb> [flags]         a board plugged into this computer (see board --help)
   qualithm core run | status | stop     the local device core (started for you when needed)
+  qualithm agents connect | disconnect  add qualithm mcp to Claude and Codex (see agents --help)
 
 Flags, accepted by every verb before or after its arguments:
   --url string     API base URL (env QUALITHM_API_URL)
@@ -231,6 +236,12 @@ const SUBPROGRAMS: Readonly<
   mcp: runMcp,
   board: async (args, io) => runBoard(args, boardIo(io)),
   deploy: async (args, io) => runBoard(["deploy", ...args], boardIo(io)),
+  agents: async (args, io) =>
+    runAgents(args, {
+      stdout: io.stdout,
+      stderr: io.stderr,
+      ...(io.agents === undefined ? {} : { host: io.agents })
+    }),
   core: async (args, io) => runCore(args, { ...io.core, stdout: io.stdout, stderr: io.stderr })
 }
 

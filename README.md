@@ -16,7 +16,8 @@ operation in a terminal, and `qualithm mcp` serves the same operations to an age
 - `--json` prints one envelope line, `{ok, code?, message?, dryRun?, action?, data?}`, with stable
   codes and exit codes.
 - `--dry-run` on every change reports the request it would send, without sending it.
-- `qualithm mcp` serves every tool over stdio.
+- `qualithm mcp` serves every tool over stdio; `qualithm agents connect` adds it to Claude and
+  Codex.
 
 ## Installation
 
@@ -72,21 +73,27 @@ qualithm board reset --serial virtual:my-sensor
 
 An agent does the same through the `deploy_project` tool with `virtual: true`.
 
-### MCP
+### Connect your agent
 
-Add the server to your agent's MCP config:
-
-```json
-{
-  "mcpServers": {
-    "qualithm": {
-      "command": "qualithm",
-      "args": ["mcp"],
-      "env": { "QUALITHM_API_TOKEN": "<your-api-token>" }
-    }
-  }
-}
+```bash
+qualithm agents connect
 ```
+
+This registers `qualithm mcp` with every agent installed on this computer: Claude desktop, Claude
+Code, the Codex app and the Codex CLI. Each gets one MCP server named `qualithm` that starts this
+`qualithm` by its absolute path. No token is written to any config. Running it again changes
+nothing; an entry that starts a different `qualithm` is updated. Restart a running agent to load it.
+
+```bash
+qualithm agents connect --dry-run    # show the config changes without making them
+qualithm agents disconnect           # remove qualithm from every agent
+```
+
+With `--json`, `data` holds the server entry and one report per agent, whose `status` is
+`not_installed`, `already_connected`, `connected`, `not_connected`, `removed` or `failed`
+(`would_connect` or `would_remove` on a dry run), with the `before` and `after` entries. A failed
+agent never stops the others; the envelope then has `ok: false` and still carries every report. An
+agent does the same through the `connect_agents` and `disconnect_agents` tools.
 
 Every tool that changes something takes `dryRun`.
 

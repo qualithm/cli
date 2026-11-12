@@ -172,7 +172,9 @@ describe("mcp", () => {
     expect(names.sort()).toEqual([
       "board_console",
       "board_logs",
+      "connect_agents",
       "deploy_project",
+      "disconnect_agents",
       "flash_board",
       "list_boards",
       "reset_board"
