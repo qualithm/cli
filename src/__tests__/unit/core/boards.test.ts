@@ -56,6 +56,8 @@ describe("boardOps", () => {
     poll_ms: 1,
     sleep: async () => Promise.resolve(),
     read_wait_ms: 1,
+    boot_quiet_ms: 5,
+    boot_timeout_ms: 1000,
     max_chunks: 10,
     sdk: async () => Promise.resolve([])
   }
@@ -85,6 +87,8 @@ describe("boardOps", () => {
       output: "42\r\n"
     })
     expect(board.closed).toBe(true)
+    // A Pico's own USB doesn't wire the modem lines to anything, so they are left alone.
+    expect(board.controls).toEqual([])
   })
 
   it("closes the port when the code raises", async () => {
@@ -102,6 +106,69 @@ describe("boardOps", () => {
     const reset = ops(board, [[pico], [pico], [], [waiting], [back]])
     expect(await reset.reset("abc")).toEqual({ port: "/dev/cu.new", serialNumber: "ABC" })
     expect(board.ran).toContain("import machine\nmachine.reset()")
+  })
+
+  const esp32: Board = {
+    state: "esp32",
+    port: "/dev/cu.usbserial-1",
+    serialNumber: "54FC019337",
+    vendorId: "1a86",
+    productId: "55d4"
+  }
+  const reset = "import machine\nmachine.reset()"
+
+  it("releases an ESP32's EN and boot lines when it opens its port", async () => {
+    const board = new FakeBoard({ "print(42)": { stdout: "42\r\n" } })
+    await ops(board, [[esp32]]).run(undefined, "print(42)")
+    expect(board.controls).toEqual([{ dtr: false, rts: false }])
+  })
+
+  it("resets an ESP32 and reads its boot before closing the port", async () => {
+    const board = new FakeBoard({
+      [reset]: { stdout: "ESP-ROM:esp32c6-20220919\r\nrig: booted\r\n" }
+    })
+    let readsAfterReset = 0
+    const read = board.read.bind(board)
+    board.read = async () => {
+      if (board.ran.includes(reset)) {
+        readsAfterReset++
+      }
+      return read()
+    }
+    const o = ops(board, [[esp32]], { appear_timeout_ms: 60000 })
+    expect(await o.reset()).toEqual({ port: "/dev/cu.usbserial-1", serialNumber: "54FC019337" })
+    expect(board.ran).toContain(reset)
+    expect(readsAfterReset).toBeGreaterThan(1)
+    expect(board.closed).toBe(true)
+  })
+
+  it("stops waiting for an ESP32's boot when it stays silent or its port goes", async () => {
+    const silent = new FakeBoard({ [reset]: "silent" })
+    expect(await ops(silent, [[esp32]], { boot_timeout_ms: 20 }).reset()).toEqual({
+      port: "/dev/cu.usbserial-1",
+      serialNumber: "54FC019337"
+    })
+    const gone = new FakeBoard()
+    gone.vanishes = true
+    expect(await ops(gone, [[esp32]]).reset()).toEqual({
+      port: "/dev/cu.usbserial-1",
+      serialNumber: "54FC019337"
+    })
+  })
+
+  it("fails a reset when an ESP32's port fails while it boots", async () => {
+    const board = new FakeBoard({ [reset]: { stdout: "ESP-ROM:esp32c6-20220919\r\n" } })
+    const read = board.read.bind(board)
+    let accepted = false
+    board.read = async () => {
+      if (accepted) {
+        throw new Error("EIO")
+      }
+      const bytes = await read()
+      accepted = board.ran.includes(reset) && Buffer.from(bytes).toString().includes("K")
+      return bytes
+    }
+    await expect(ops(board, [[esp32]]).reset()).rejects.toThrow("EIO")
   })
 
   it("tracks a board without a serial number by its port", async () => {

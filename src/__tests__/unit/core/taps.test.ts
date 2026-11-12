@@ -53,8 +53,8 @@ function taps(
   let call = 0
   const t = new Taps({
     list: async () => Promise.resolve(boards[Math.min(call++, boards.length - 1)] ?? []),
-    open: async (path) => {
-      opens.push(path)
+    open: async (board) => {
+      opens.push(board.port)
       const port = ports.shift()
       if (port === undefined) {
         throw new Error("no port left")
