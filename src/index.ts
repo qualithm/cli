@@ -34,7 +34,7 @@ export {
 } from "./envelope.ts"
 export type { SessionFactory } from "./mcp.ts"
 export { buildMcpServer, callTool, toCallToolResult } from "./mcp.ts"
-export type { FetchAPI, SessionConfig } from "./platform.ts"
+export type { AccessTokenSource, FetchAPI, SessionConfig } from "./platform.ts"
 export { Session, sessionFetch } from "./platform.ts"
 export { TOOLS } from "./tools/index.ts"
 export type { Tool } from "./tools/tool.ts"
