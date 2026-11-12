@@ -1,4 +1,4 @@
-import type { Device, DeviceCheck, DevicePage } from "@qualithm/platform"
+import type { Device, DeviceCheck, DevicePage, DeviceStatePage } from "@qualithm/platform"
 
 import { CliError } from "../envelope.ts"
 import { dash, table, when } from "../table.ts"
@@ -10,6 +10,7 @@ import {
   updateDevice
 } from "../tools/devices.ts"
 import type { Decision } from "../tools/receipt.ts"
+import { getTeamDeviceState } from "../tools/teams.ts"
 import {
   type Command,
   intOption,
@@ -93,7 +94,16 @@ function parkedOption(values: ParsedArgs["values"]): boolean | undefined {
   return values.park === true ? true : values.unpark === true ? false : undefined
 }
 
-/** `qualithm device …`: list, inspect, create, update and delete devices. */
+/**
+ * @param metrics - a device's latest metrics, by name
+ * @returns the metrics as `name=value` pairs, or a dash when there are none
+ */
+export function metricsCell(metrics: Readonly<Record<string, number>>): string {
+  const pairs = Object.entries(metrics).map(([name, value]) => `${name}=${String(value)}`)
+  return pairs.length === 0 ? "-" : pairs.join(" ")
+}
+
+/** `qualithm device …`: list, inspect, create, update and delete devices, and read their state. */
 export const deviceCommands: readonly Command[] = [
   {
     path: ["device", "list"],
@@ -113,6 +123,26 @@ export const deviceCommands: readonly Command[] = [
           dash(d.name),
           d.scopeId,
           levelName(d.level)
+        ])
+      ])
+  },
+  {
+    path: ["device", "state"],
+    tool: getTeamDeviceState,
+    options: { cursor: { type: "string" }, limit: { type: "string" } },
+    toInput: ({ values }: ParsedArgs): Record<string, unknown> => ({
+      cursor: stringOption(values, "cursor"),
+      limit: intOption(values, "limit")
+    }),
+    human: (data: unknown): string =>
+      table([
+        ["ID", "SCOPE", "ONLINE", "LAST SEEN", "METRICS"],
+        ...(data as DeviceStatePage).items.map((s) => [
+          s.deviceId,
+          s.scopeId,
+          s.online ? "yes" : "no",
+          when(s.lastSeenAt),
+          metricsCell(s.metrics)
         ])
       ])
   },

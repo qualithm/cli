@@ -39,7 +39,8 @@ const routes = {
   "GET /v1/teams/team_2": { status: 200, body: { data: TEAM } },
   "PATCH /v1/teams/team_2": { status: 204 },
   "DELETE /v1/teams/team_2": { status: 204 },
-  "GET /v1/teams/team_2/device-states": { status: 200, body: { data: { items: [STATE] } } }
+  "GET /v1/teams/team_2/device-states": { status: 200, body: { data: { items: [STATE] } } },
+  "GET /v1/teams/team_1/device-states": { status: 200, body: { data: { items: [STATE] } } }
 }
 
 async function call(
@@ -149,6 +150,15 @@ describe("team tools", () => {
       data: { items: [{ deviceId: "dev_1", online: true }] }
     })
     expect(requests).toMatchObject([{ method: "GET", path: "/v1/teams/team_2/device-states" }])
+  })
+
+  it("reads the session team's device state without an id", async () => {
+    const { result, requests } = await call(getTeamDeviceState, { limit: 5 })
+    expect(result).toMatchObject({ ok: true })
+    expect(requests.at(-1)).toMatchObject({
+      method: "GET",
+      path: "/v1/teams/team_1/device-states"
+    })
   })
 
   it.each([
