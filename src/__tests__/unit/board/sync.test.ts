@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest"
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
 import {
   collectProject,
+  emptiedDirs,
   MANIFEST,
   PROBE,
   probeSetup,
@@ -25,6 +26,8 @@ import { FakeBoard } from "./fake-board.ts"
  */
 class FakeFs implements Repl {
   readonly files = new Map<string, Uint8Array>()
+  /** Folders made with `_md`; a file's folder also exists without being listed here. */
+  readonly dirs = new Set<string>()
   readonly ran: string[] = []
   failOn?: string
   error = "OSError: [Errno 28] ENOSPC"
@@ -101,6 +104,8 @@ class FakeFs implements Repl {
     }
     const opening = /^_md\((".*")\)\n_f = open\((".*"), "wb"\)$/.exec(code)
     if (opening !== null) {
+      const parts = (JSON.parse(opening[1] ?? '""') as string).split("/").slice(1, -1)
+      parts.forEach((_, i) => this.dirs.add(`/${parts.slice(0, i + 1).join("/")}`))
       this.#open = { path: JSON.parse(opening[2] ?? '""') as string, chunks: [] }
       return ""
     }
@@ -119,6 +124,16 @@ class FakeFs implements Repl {
     const remove = /^_rm\((".*")\)$/.exec(code)
     if (remove !== null) {
       this.files.delete(JSON.parse(remove[1] ?? '""') as string)
+      return ""
+    }
+    const rmdir = /^_rd\((\[.*\])\)$/.exec(code)
+    if (rmdir !== null) {
+      for (const dir of JSON.parse(rmdir[1] ?? "[]") as string[]) {
+        const inside = (p: string): boolean => p.startsWith(`${dir}/`)
+        if (![...this.files.keys(), ...this.dirs].some(inside)) {
+          this.dirs.delete(dir)
+        }
+      }
       return ""
     }
     const manifest = /^_f = open\((".*"), "w"\)\n_f\.write\((".*")\)\n_f\.close\(\)$/.exec(code)
@@ -192,6 +207,15 @@ describe("collectProject", () => {
   })
 })
 
+describe("emptiedDirs", () => {
+  it("lists removed files' folders deepest first, less /, /lib and the project's", () => {
+    expect(emptiedDirs(["/a/b/c.py", "/a/d.py", "/top.py", "/lib/x.py"], ["/a/keep/k.py"])).toEqual(
+      ["/a/b"]
+    )
+    expect(emptiedDirs(["/a/b/c.py", "/z/y.py"], [])).toEqual(["/a/b", "/a", "/z"])
+  })
+})
+
 describe("syncWith", () => {
   it("writes every file on a first deploy and records them", async () => {
     const fs = new FakeFs()
@@ -210,6 +234,41 @@ describe("syncWith", () => {
     const result = await syncWith(fs, [file("/main.py", "a"), file("/lib/x.py", "B")], false)
     expect(result).toEqual({ written: ["/lib/x.py"], removed: ["/old.py"], unchanged: 1 })
     expect([...fs.files.keys()].sort()).toEqual([MANIFEST, "/lib/x.py", "/main.py", "/mine.txt"])
+  })
+
+  it("removes the folders a redeploy empties, keeping /lib and folders still in use", async () => {
+    const fs = new FakeFs()
+    await syncWith(
+      fs,
+      [
+        file("/main.py", "a"),
+        file("/qualithm_device/board.py", "b"),
+        file("/pkg/sub/deep.py", "c"),
+        file("/pkg/keep.py", "d"),
+        file("/lib/only.py", "e"),
+        file("/data/log.txt", "f")
+      ],
+      false
+    )
+    fs.files.set("/data/mine.txt", new Uint8Array([1]))
+    fs.ran.length = 0
+    const result = await syncWith(fs, [file("/main.py", "a"), file("/pkg/keep.py", "d")], false)
+    expect(result.removed).toEqual([
+      "/qualithm_device/board.py",
+      "/pkg/sub/deep.py",
+      "/lib/only.py",
+      "/data/log.txt"
+    ])
+    expect([...fs.dirs].sort()).toEqual(["/data", "/lib", "/pkg"])
+    expect(fs.ran).toContain('_rd(["/pkg/sub","/data","/qualithm_device"])')
+  })
+
+  it("tries no folder when nothing was removed", async () => {
+    const fs = new FakeFs()
+    await syncWith(fs, [file("/pkg/a.py", "a")], false)
+    fs.ran.length = 0
+    await syncWith(fs, [file("/pkg/a.py", "b")], false)
+    expect(fs.ran.some((code) => code.startsWith("_rd("))).toBe(false)
   })
 
   it("never removes the SDK's files, even when a manifest lists them", async () => {
