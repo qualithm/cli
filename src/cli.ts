@@ -94,10 +94,10 @@ Resources and verbs:
   version                               print the CLI version
 
 Examples:
-  qualithm enrollment create --scope spc_123 --label lab-floor-2
+  qualithm enrollment create --scope scp_defraa_123 --label lab-floor-2
   qualithm device list --json
-  qualithm credential create --device dev_123 --json
-  qualithm credential revoke --device dev_123 --credential cred_123 --dry-run
+  qualithm credential create --device dvc_defraa_123 --json
+  qualithm credential revoke --device dvc_defraa_123 --credential crd_defraa_123 --dry-run
   qualithm authority create --name fleet --kind byo --cert-file ca.pem --dry-run
   qualithm apply fleet.yaml --dry-run
   qualithm board flash
