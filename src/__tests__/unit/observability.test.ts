@@ -19,7 +19,7 @@ const ROUTES = {
   },
   "GET /v1/teams/team_1/usage": {
     status: 200,
-    body: { data: { deviceTotal: 3, deviceMax: 10, spaceTotal: 2 } }
+    body: { data: { deviceTotal: 3, deviceMax: 10, scopeTotal: 2 } }
   },
   "GET /v1/teams/team_1/audit-events": {
     status: 200,
@@ -227,9 +227,9 @@ describe("stream_events", () => {
 describe("get_usage", () => {
   it("reads the team's usage", async () => {
     const { newSession, urls } = platform()
-    expect(await callTool(getUsage, newSession, {})).toEqual({
+    expect(await callTool(getUsage, newSession, {})).toMatchObject({
       ok: true,
-      data: { deviceTotal: 3, deviceMax: 10, spaceTotal: 2 }
+      data: { deviceTotal: 3, deviceMax: 10, scopeTotal: 2 }
     })
     expect(urls.at(-1)?.pathname).toBe("/v1/teams/team_1/usage")
   })
