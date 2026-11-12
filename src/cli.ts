@@ -1,10 +1,14 @@
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util"
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+import { DEFAULT_BASE_URL } from "@qualithm/platform"
 
 import type { AgentHost } from "./agents/connect.ts"
+import { fileLock, LoginSource, NOT_LOGGED_IN, type RefreshLock } from "./auth/login.ts"
+import { type CredentialStore, keychainStore } from "./auth/store.ts"
 import { runAgents } from "./commands/agents.ts"
 import { applyCommands } from "./commands/apply.ts"
+import { type AuthIo, runAuth } from "./commands/auth.ts"
 import { authorityCommands } from "./commands/authorities.ts"
 import { type BoardIo, runBoard } from "./commands/boards.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
@@ -37,6 +41,10 @@ export type CliIo = {
   agents?: AgentHost
   /** What `qualithm core run` reaches for; defaults to the real machine. @internal */
   core?: Omit<CoreIo, "stdout" | "stderr">
+  /** Where sign-ins are kept; defaults to the OS keychain. @internal */
+  credentials?: CredentialStore
+  /** What `qualithm login` and refreshes reach for; defaults to the real machine. @internal */
+  login?: Pick<AuthIo, "openBrowser" | "timeoutMs" | "now"> & { lock?: RefreshLock }
 }
 
 /** Every command, in the order help lists them. */
@@ -72,6 +80,8 @@ const COMMON_OPTIONS = {
 export const USAGE = `qualithm: the Qualithm CLI and MCP server.
 
 Usage:
+  qualithm login                        sign in with your browser; the keychain keeps it
+  qualithm logout | whoami              sign out, or show the team and role in use
   qualithm <resource> <verb> [flags]
   qualithm apply <manifest.yaml> [flags]
   qualithm mcp                          serve every tool over stdio, for an agent
@@ -82,15 +92,15 @@ Usage:
 
 Flags, accepted by every verb before or after its arguments:
   --url string     API base URL (env QUALITHM_API_URL)
-  --token string   member API token (env QUALITHM_API_TOKEN)
-  --team string    team to act on; defaults to the token's team (env QUALITHM_TEAM)
+  --token string   API token, used instead of your sign-in (env QUALITHM_API_TOKEN)
+  --team string    team to act on; defaults to the credential's team (env QUALITHM_TEAM)
   --json           print one JSON envelope line instead of a table
   --dry-run        report the planned change without applying it
 
 Resources and verbs:
   authority  list | create | revoke <id>
   credential list | create | cert | rotate | revoke
-  device     list | get <id> | create | update <id> | delete <id>
+  device     list | get <id> | state | create | update <id> | delete <id>
   enrollment list | create | revoke <id>
   scope      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
@@ -99,6 +109,7 @@ Resources and verbs:
   version                               print the CLI version
 
 Examples:
+  qualithm login
   qualithm enrollment create --scope scp_defraa_123 --label lab-floor-2
   qualithm device list --json
   qualithm credential create --device dvc_defraa_123 --json
@@ -123,25 +134,80 @@ function findCommand(resource: string, verb: string): Command | undefined {
   )
 }
 
+type Values = Readonly<Record<string, string | boolean | undefined>>
+
+function pick(io: CliIo, values: Values, flag: string, name: string): string | undefined {
+  const env = io.env ?? process.env
+  const value = values[flag]
+  return typeof value === "string" ? value : env[name] === "" ? undefined : env[name]
+}
+
+/** The API origin a sign-in is kept for. */
+function apiOrigin(io: CliIo, values: Values): string {
+  const baseUrl = pick(io, values, "url", "QUALITHM_API_URL") ?? DEFAULT_BASE_URL
+  try {
+    return new URL(baseUrl).origin
+  } catch {
+    throw new CliError(`--url is not a URL: ${baseUrl}`)
+  }
+}
+
+const stores = new WeakMap<CliIo, CredentialStore>()
+
+function credentialStore(io: CliIo): CredentialStore {
+  let store = io.credentials ?? stores.get(io)
+  if (store === undefined) {
+    store = keychainStore()
+    stores.set(io, store)
+  }
+  return store
+}
+
+function loginSource(io: CliIo, values: Values): LoginSource {
+  return new LoginSource({
+    api: apiOrigin(io, values),
+    store: credentialStore(io),
+    fetch: io.fetch ?? (async (input, init) => fetch(input, init)),
+    lock: io.login?.lock ?? fileLock(),
+    ...(io.login?.now === undefined ? {} : { now: io.login.now })
+  })
+}
+
 function sessionConfig(
   io: CliIo,
-  values: Readonly<Record<string, string | boolean | undefined>>,
-  userAgent: string
+  values: Values,
+  userAgent: string,
+  signInOnly = false
 ): SessionConfig {
-  const env = io.env ?? process.env
-  const pick = (flag: string, name: string): string | undefined => {
-    const value = values[flag]
-    return typeof value === "string" ? value : env[name] === "" ? undefined : env[name]
-  }
-  const token = pick("token", "QUALITHM_API_TOKEN")
-  const baseUrl = pick("url", "QUALITHM_API_URL")
-  const team = pick("team", "QUALITHM_TEAM")
+  // A token, from the flag or the environment, takes precedence over the stored sign-in.
+  const token = signInOnly ? undefined : pick(io, values, "token", "QUALITHM_API_TOKEN")
+  const baseUrl = pick(io, values, "url", "QUALITHM_API_URL")
+  const team = pick(io, values, "team", "QUALITHM_TEAM")
   return {
     userAgent,
-    ...(token === undefined ? {} : { token }),
+    ...(token === undefined ? { credential: loginSource(io, values) } : { token }),
     ...(baseUrl === undefined ? {} : { baseUrl }),
     ...(team === undefined ? {} : { team }),
     ...(io.fetch === undefined ? {} : { fetch: io.fetch })
+  }
+}
+
+function authIo(io: CliIo): AuthIo {
+  return {
+    stdout: io.stdout,
+    stderr: io.stderr,
+    fetch: io.fetch ?? (async (input, init) => fetch(input, init)),
+    store: credentialStore(io),
+    api: (values) => apiOrigin(io, values),
+    override: (values) =>
+      typeof values.token === "string"
+        ? "--token"
+        : pick(io, values, "token", "QUALITHM_API_TOKEN") === undefined
+          ? undefined
+          : "QUALITHM_API_TOKEN",
+    newSession: (values, signInOnly) =>
+      new Session(sessionConfig(io, values, `qualithm/${VERSION}`, signInOnly)),
+    ...io.login
   }
 }
 
@@ -204,13 +270,19 @@ async function runMcp(args: string[], io: CliIo): Promise<number> {
   const config = sessionConfig(io, values, `qualithm-mcp/${VERSION}`)
   const newSession: SessionFactory = (dryRun) => new Session({ ...config, dryRun })
   let tools = TOOLS
+  let signedIn: boolean
   try {
-    newSession(false)
+    signedIn =
+      config.token !== undefined ||
+      ((await (config.credential as LoginSource | undefined)?.present()) ?? false)
   } catch (error) {
+    signedIn = false
+    io.stderr(`qualithm: ${error instanceof Error ? error.message : String(error)}\n`)
+  }
+  if (!signedIn) {
     // Boards need no account: serve their tools alone, so flashing works before signing up.
     tools = TOOLS.filter((tool) => tool.local === true)
-    const message = error instanceof Error ? error.message : String(error)
-    io.stderr(`qualithm: ${message}; serving only the board tools\n`)
+    io.stderr(`qualithm: ${NOT_LOGGED_IN}; serving only the board tools\n`)
   }
   const serve = io.serveMcp ?? (async (server) => server.connect(new StdioServerTransport()))
   await serve(buildMcpServer(newSession, VERSION, tools))
@@ -234,6 +306,9 @@ const SUBPROGRAMS: Readonly<
   Record<string, ((args: string[], io: CliIo) => Promise<number>) | undefined>
 > = {
   mcp: runMcp,
+  login: async (args, io) => runAuth("login", args, authIo(io)),
+  logout: async (args, io) => runAuth("logout", args, authIo(io)),
+  whoami: async (args, io) => runAuth("whoami", args, authIo(io)),
   board: async (args, io) => runBoard(args, boardIo(io)),
   deploy: async (args, io) => runBoard(["deploy", ...args], boardIo(io)),
   agents: async (args, io) =>

@@ -5,10 +5,21 @@ import { CliError, DryRunError } from "./envelope.ts"
 /** The `fetch` signature the platform client sends requests with. */
 export type FetchAPI = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
+/** Hands out the access token of a stored sign-in, refreshing it as needed. */
+export type AccessTokenSource = {
+  /**
+   * @param rejected - the token the API just refused, so a fresh one is fetched past it
+   * @returns the token to send
+   */
+  accessToken: (rejected?: string) => Promise<string>
+}
+
 /** How a command or tool reaches the platform. */
 export type SessionConfig = {
-  /** An API token; defaults to `QUALITHM_API_TOKEN`. */
+  /** An API token; defaults to `QUALITHM_API_TOKEN`. Takes precedence over `credential`. */
   token?: string
+  /** The stored sign-in, used when no token is given. */
+  credential?: AccessTokenSource
   /** The API's base URL; defaults to `QUALITHM_API_URL`, else production. */
   baseUrl?: string
   /** The team to act on; defaults to the token's own team. */
@@ -45,7 +56,7 @@ function bodyOf(init: RequestInit | undefined): unknown {
  */
 export function sessionFetch(
   base: FetchAPI,
-  config: Pick<SessionConfig, "dryRun" | "userAgent">
+  config: Pick<SessionConfig, "dryRun" | "userAgent" | "credential">
 ): FetchAPI {
   return async (input, init) => {
     const method = (init?.method ?? "GET").toUpperCase()
@@ -62,6 +73,18 @@ export function sessionFetch(
     if (config.userAgent !== undefined) {
       headers.set("User-Agent", config.userAgent)
     }
+    const { credential } = config
+    if (credential === undefined) {
+      return base(input, { ...init, headers })
+    }
+    const token = await credential.accessToken()
+    headers.set("Authorization", `Bearer ${token}`)
+    const response = await base(input, { ...init, headers })
+    if (response.status !== 401) {
+      return response
+    }
+    // Revoked early or lapsed in flight: refresh once, then let a second refusal through.
+    headers.set("Authorization", `Bearer ${await credential.accessToken(token)}`)
     return base(input, { ...init, headers })
   }
 }
@@ -74,15 +97,19 @@ export class Session {
   private team: string | undefined
 
   /**
-   * @param config - token, base URL, team, dry-run and User-Agent
-   * @throws {PlatformError} when no token is given or set
+   * @param config - token or stored sign-in, base URL, team, dry-run and User-Agent
+   * @throws {PlatformError} when neither a token nor a stored sign-in is given, and none is set
    */
   constructor(config: SessionConfig = {}) {
     const base = config.fetch ?? (async (input, init) => fetch(input, init))
+    const { credential, ...rest } = config
+    const signedIn = config.token === undefined && credential !== undefined
     this.client = new PlatformClient({
+      // A stored sign-in's token is set per request by `sessionFetch`; the client needs a stand-in.
+      ...(signedIn ? { token: "stored-sign-in" } : {}),
       ...(config.token === undefined ? {} : { token: config.token }),
       ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),
-      fetch: sessionFetch(base, config)
+      fetch: sessionFetch(base, signedIn ? config : rest)
     })
     this.team = config.team === "" ? undefined : config.team
     this.baseUrl = (config.baseUrl ?? process.env.QUALITHM_API_URL ?? DEFAULT_BASE_URL).replace(

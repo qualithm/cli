@@ -20,6 +20,51 @@ describe("device", () => {
     expect(one.requests.at(-1)?.path).toBe("/v1/teams/team_1/scopes/spc_1/devices")
   })
 
+  it("shows each device's state: online, last seen and metrics", async () => {
+    const items = [
+      {
+        deviceId: "dev_1",
+        scopeId: "spc_1",
+        spaceId: "spc_1",
+        online: true,
+        lastSeenAt: "2026-10-20T10:00:00.000Z",
+        metrics: { temperature: 21.5, rssi: -60 }
+      },
+      {
+        deviceId: "dev_2",
+        scopeId: "spc_1",
+        spaceId: "spc_1",
+        online: false,
+        lastSeenAt: "2026-10-19T08:00:00.000Z",
+        metrics: {}
+      }
+    ]
+    const routes = {
+      ...DEFAULT_ROUTES,
+      "GET /v1/teams/team_1/device-states": {
+        status: 200,
+        body: { data: { items, current: 1, last: 1, nextCursor: null } }
+      }
+    }
+    const c = capture({}, routes)
+    expect(await run(["device", "state", "--limit", "5"], c.io)).toBe(0)
+    expect(c.out()).toBe(
+      "ID     SCOPE  ONLINE  LAST SEEN                 METRICS\n" +
+        "dev_1  spc_1  yes     2026-10-20T10:00:00.000Z  temperature=21.5 rssi=-60\n" +
+        "dev_2  spc_1  no      2026-10-19T08:00:00.000Z  -\n"
+    )
+    expect(c.requests.at(-1)).toMatchObject({ path: "/v1/teams/team_1/device-states" })
+    const json = capture({}, routes)
+    expect(await run(["device", "state", "--json"], json.io)).toBe(0)
+    const envelope = JSON.parse(json.out()) as { ok: boolean; data: { items: unknown[] } }
+    expect(envelope.ok).toBe(true)
+    expect(envelope.data.items[0]).toMatchObject({
+      deviceId: "dev_1",
+      online: true,
+      lastSeenAt: "2026-10-20T10:00:00.000Z"
+    })
+  })
+
   it("shows one device", async () => {
     const c = capture()
     expect(await run(["device", "show", "dev_1"], c.io)).toBe(0)
