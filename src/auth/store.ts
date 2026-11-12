@@ -50,6 +50,8 @@ export const defaultSecretHost: SecretHost = {
           }
         }
       )
+      // A command that exits before reading its stdin closes the pipe; its exit code says why.
+      child.stdin?.on("error", () => undefined)
       child.stdin?.end(input ?? "")
     })
 }
