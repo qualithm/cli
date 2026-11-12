@@ -107,9 +107,7 @@ function boardsTable(boards: Board[]): string {
   return table([
     ["STATE", "SERIAL", "WHERE"],
     ...boards.map((b) =>
-      b.state === "micropython"
-        ? ["micropython", dash(b.serialNumber), b.port]
-        : ["bootsel", "-", b.drive]
+      b.state === "bootsel" ? ["bootsel", "-", b.drive] : [b.state, dash(b.serialNumber), b.port]
     )
   ])
 }
@@ -155,7 +153,7 @@ function human(verb: string, data: unknown, dryRun: boolean): string {
   }
   if (dryRun && verb !== "deploy") {
     const { board } = data as { board: Board }
-    const at = board.state === "micropython" ? where(board) : `BOOTSEL drive ${board.drive}`
+    const at = board.state === "bootsel" ? `BOOTSEL drive ${board.drive}` : where(board)
     return `dry-run: would ${verb} ${at}\n`
   }
   if (verb === "deploy") {

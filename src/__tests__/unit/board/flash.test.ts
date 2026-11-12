@@ -14,7 +14,7 @@ import {
 } from "../../../board/flash.ts"
 import type { Board } from "../../../board/pico.ts"
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
-import type { SerialPort } from "../../../board/serial.ts"
+import type { ControlSerialPort, SerialPort } from "../../../board/serial.ts"
 import { CliError } from "../../../envelope.ts"
 import { FakeBoard } from "./fake-board.ts"
 import { uf2 } from "./uf2.ts"
@@ -179,7 +179,8 @@ describe("flashMicroPython", () => {
     const r = rig()
     await expect(flashMicroPython(r.config, undefined, FIRMWARE)).rejects.toMatchObject({
       code: "not_found",
-      message: "no board found: plug in a Pico 2 W, holding BOOTSEL if it has never been flashed"
+      message:
+        "no board found: plug in an ESP32, or a Pico 2 W holding BOOTSEL if it has never been flashed"
     })
   })
 
@@ -230,9 +231,56 @@ describe("copyToDrive", () => {
   })
 })
 
+describe("flashMicroPython on an ESP32", () => {
+  const esp: Board = {
+    state: "esp32",
+    port: "/dev/cu.c3",
+    serialNumber: "54FC019337",
+    vendorId: "1a86",
+    productId: "55d4"
+  }
+
+  it("refuses when no ESP32 flashing is set up", async () => {
+    const r = rig()
+    r.lists.push([esp])
+    await expect(flashMicroPython(r.config, undefined, FIRMWARE)).rejects.toThrow(
+      "flashing an ESP32 isn't set up here"
+    )
+  })
+
+  it("hands the board to the ESP32 flash, never downloading the Pico build", async () => {
+    const r = rig()
+    r.lists.push([esp])
+    const fetched: string[] = []
+    r.config.firmware = {
+      ...r.config.firmware,
+      fetch: async (url) => {
+        fetched.push(url)
+        return Promise.resolve(new Response(BYTES))
+      }
+    }
+    r.config.esp32 = {
+      list: async () => Promise.resolve([]),
+      open: async () =>
+        Promise.reject(new CliError("serial port /dev/cu.c3 is in use", "unavailable")),
+      rom: () => {
+        throw new Error("not reached")
+      },
+      builds: {},
+      firmware: r.config.firmware,
+      repl: r.config.repl,
+      appear_timeout_ms: 0,
+      poll_ms: 1,
+      sleep: r.config.sleep
+    }
+    await expect(flashMicroPython(r.config, "54fc019337", FIRMWARE)).rejects.toThrow("in use")
+    expect(fetched).toEqual([])
+  })
+})
+
 describe("defaultFlashConfig", () => {
   it("uses the real machine with the given opener", async () => {
-    const open = async (): Promise<SerialPort> => Promise.resolve(new FakeBoard())
+    const open = async (): Promise<ControlSerialPort> => Promise.resolve(new FakeBoard())
     const config = defaultFlashConfig(open)
     expect(config.open).toBe(open)
     expect(config.copy).toBe(copyToDrive)

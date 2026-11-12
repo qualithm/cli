@@ -18,6 +18,29 @@ export type SerialPort = {
   close: () => Promise<void>
 }
 
+/** The modem lines a port can drive; a line left out keeps its level. */
+export type ModemSignals = {
+  /** Data Terminal Ready. */
+  dtr?: boolean
+  /** Request To Send. */
+  rts?: boolean
+}
+
+/**
+ * A serial port that also drives its modem lines and changes speed, as resetting an ESP32 into
+ * its bootloader and flashing it at speed need.
+ */
+export type ControlSerialPort = SerialPort & {
+  /** Sets the DTR and RTS lines. */
+  setSignals: (signals: ModemSignals) => Promise<void>
+  /**
+   * Changes the line speed in place.
+   *
+   * @throws {CliError} when the OS refuses the speed
+   */
+  setBaudRate: (baud: number) => Promise<void>
+}
+
 /** How a port polls for bytes. */
 export type SerialConfig = {
   /** Default wait for one `read`. */
@@ -38,9 +61,47 @@ export type Ptr = (buffer: Uint8Array) => number
 
 /** The libc calls the POSIX port makes. */
 export type Libc = {
+  /** Which system's numbers the calls take. */
+  platform: "darwin" | "linux"
   tcgetattr: (fd: number, termios: number) => number
   tcsetattr: (fd: number, action: number, termios: number) => number
   cfmakeraw: (termios: number) => void
+  cfsetspeed: (termios: number, speed: number) => number
+  /** `ioctl` with one pointer argument; on macOS the non-variadic `__ioctl`, which FFI can call. */
+  ioctl: (fd: number, request: number, arg: number) => number
+}
+
+/** The termios and modem-line numbers that differ between the two POSIX systems. */
+type PosixLines = {
+  tiocmget: number
+  tiocmset: number
+  /** The `speed_t` for a baud rate, or undefined when the system has none for it. */
+  speed: (baud: number) => number | undefined
+}
+
+/** The speed a port opens at, MicroPython's REPL speed. */
+const OPEN_BAUD = 115200
+const TIOCM_DTR = 0x002
+const TIOCM_RTS = 0x004
+// Linux's `speed_t` values are codes, not rates; macOS takes the rate itself.
+const LINUX_SPEEDS: Readonly<Record<number, number>> = {
+  9600: 0o15,
+  19200: 0o16,
+  38400: 0o17,
+  57600: 0o10001,
+  115200: 0o10002,
+  230400: 0o10003,
+  460800: 0o10004,
+  500000: 0o10005,
+  576000: 0o10006,
+  921600: 0o10007,
+  1000000: 0o10010,
+  1500000: 0o10012,
+  2000000: 0o10013
+}
+const POSIX_LINES: Readonly<Record<"darwin" | "linux", PosixLines>> = {
+  darwin: { tiocmget: 0x4004746a, tiocmset: 0x8004746d, speed: (baud) => baud },
+  linux: { tiocmget: 0x5415, tiocmset: 0x5418, speed: (baud) => LINUX_SPEEDS[baud] }
 }
 
 /** The file calls the POSIX port makes; Node's `fs` by default. */
@@ -120,7 +181,7 @@ export function openPosix(
   ptr: Ptr,
   fs: PosixFs = nodeFs,
   config: SerialConfig = defaultSerialConfig
-): SerialPort {
+): ControlSerialPort {
   let fd: number
   try {
     fd = fs.open(path, constants.O_RDWR | constants.O_NOCTTY | constants.O_NONBLOCK)
@@ -133,15 +194,50 @@ export function openPosix(
     throw new CliError(`${path} is not a serial port`, "error")
   }
   libc.cfmakeraw(ptr(termios))
-  if (libc.tcsetattr(fd, TCSANOW, ptr(termios)) !== 0) {
+  const lines = POSIX_LINES[libc.platform]
+  // A USB serial bridge in front of a chip's UART keeps the last speed set; USB CDC ignores it.
+  if (
+    libc.cfsetspeed(ptr(termios), lines.speed(OPEN_BAUD) ?? OPEN_BAUD) !== 0 ||
+    libc.tcsetattr(fd, TCSANOW, ptr(termios)) !== 0
+  ) {
     fs.close(fd)
     throw new CliError(`configure serial port ${path}`, "error")
   }
   let open = true
   const chunk = new Uint8Array(READ_CHUNK_BYTES)
+  const bits = new Int32Array(1)
+  const bitsBytes = new Uint8Array(bits.buffer)
 
   return {
     path,
+    setSignals: async (signals) => {
+      if (libc.ioctl(fd, lines.tiocmget, ptr(bitsBytes)) !== 0) {
+        throw gone(path)
+      }
+      let next = bits[0] ?? 0
+      if (signals.dtr !== undefined) {
+        next = signals.dtr ? next | TIOCM_DTR : next & ~TIOCM_DTR
+      }
+      if (signals.rts !== undefined) {
+        next = signals.rts ? next | TIOCM_RTS : next & ~TIOCM_RTS
+      }
+      bits[0] = next
+      if (libc.ioctl(fd, lines.tiocmset, ptr(bitsBytes)) !== 0) {
+        throw gone(path)
+      }
+      return Promise.resolve()
+    },
+    setBaudRate: async (baud) => {
+      const speed = lines.speed(baud)
+      if (
+        speed === undefined ||
+        libc.cfsetspeed(ptr(termios), speed) !== 0 ||
+        libc.tcsetattr(fd, TCSANOW, ptr(termios)) !== 0
+      ) {
+        throw new CliError(`set ${path} to ${String(baud)} baud`, "error")
+      }
+      return Promise.resolve()
+    },
     write: async (data) => {
       let sent = 0
       while (sent < data.length) {
@@ -200,8 +296,15 @@ export type Kernel32 = {
   /** `WriteFile` without overlapped I/O. */
   writeFile: (handle: number, buffer: number, size: number, done: number) => number
   closeHandle: (handle: number) => number
+  /** `EscapeCommFunction`: one of the SETRTS, CLRRTS, SETDTR or CLRDTR codes. */
+  escapeCommFunction: (handle: number, code: number) => number
   getLastError: () => number
 }
+
+const SETRTS = 3
+const CLRRTS = 4
+const SETDTR = 5
+const CLRDTR = 6
 
 const GENERIC_READ = 0x80000000
 const GENERIC_WRITE = 0x40000000
@@ -233,7 +336,7 @@ export function openWindows(
   kernel32: Kernel32,
   ptr: Ptr,
   config: SerialConfig = defaultSerialConfig
-): SerialPort {
+): ControlSerialPort {
   const name = new Uint8Array(Buffer.from(`\\\\.\\${path}\0`, "utf16le"))
   const handle = kernel32.createFile(ptr(name), READ_WRITE, OPEN_EXISTING)
   if (handle === INVALID_HANDLE) {
@@ -274,9 +377,30 @@ export function openWindows(
   const chunk = new Uint8Array(READ_CHUNK_BYTES)
   const done = new Uint32Array(1)
   const doneBytes = new Uint8Array(done.buffer)
+  const escape = (code: number): void => {
+    if (kernel32.escapeCommFunction(handle, code) === 0) {
+      throw gone(path)
+    }
+  }
 
   return {
     path,
+    setSignals: async (signals) => {
+      if (signals.dtr !== undefined) {
+        escape(signals.dtr ? SETDTR : CLRDTR)
+      }
+      if (signals.rts !== undefined) {
+        escape(signals.rts ? SETRTS : CLRRTS)
+      }
+      return Promise.resolve()
+    },
+    setBaudRate: async (baud) => {
+      view.setUint32(4, baud, true)
+      if (kernel32.setCommState(handle, ptr(dcb)) === 0) {
+        throw new CliError(`set ${path} to ${String(baud)} baud`, "error")
+      }
+      return Promise.resolve()
+    },
     write: async (data) => {
       let sent = 0
       while (sent < data.length) {

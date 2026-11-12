@@ -49,7 +49,7 @@ export type Result = {
   dryRun?: boolean
   /** The planned mutation, on a dry run. */
   action?: PlannedAction
-  /** The API's payload, on success. */
+  /** The API's payload, on success; on a failure, what the command did before it failed. */
   data?: unknown
 }
 
@@ -71,14 +71,20 @@ export class DryRunError extends Error {
 export class CliError extends Error {
   override readonly name = "CliError"
   readonly code: ErrorCode
+  /** What the command did before it failed, carried into the envelope's `data`. */
+  readonly data?: unknown
 
   /**
    * @param message - what failed, lowercase
    * @param code - the stable code; defaults to `usage`
+   * @param data - what the command did anyway, such as the agents a connect reached
    */
-  constructor(message: string, code: ErrorCode = "usage") {
+  constructor(message: string, code: ErrorCode = "usage", data?: unknown) {
     super(message)
     this.code = code
+    if (data !== undefined) {
+      this.data = data
+    }
   }
 }
 
@@ -133,7 +139,8 @@ export function failure(error: unknown): Result {
     return { ok: true, dryRun: true, action: error.action }
   }
   if (error instanceof CliError) {
-    return { ok: false, code: error.code, message: error.message }
+    const { code, message, data } = error
+    return data === undefined ? { ok: false, code, message } : { ok: false, code, message, data }
   }
   if (error instanceof PlatformError) {
     // No token at all is a setup mistake, not a refused credential: no request was sent.
