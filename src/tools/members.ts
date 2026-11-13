@@ -19,10 +19,11 @@ export const listTeamMembers = defineTool({
   }
 })
 
-/** Accepts the caller's own invite to a team. */
+/** Accepts an invite by id; only the account whose email it names can. */
 export const addTeamMember = defineTool({
   name: "add_team_member",
-  description: "Accept the caller's invite to a team, activating their membership.",
+  description:
+    "Accept an invite by id. Only the account whose email the invite names can accept it.",
   mutating: true,
   input: {
     teamId: teamId("id of the team the invite belongs to"),
@@ -104,34 +105,63 @@ export const listTeamInvites = defineTool({
   }
 })
 
-/** Invites an account to a team by email. */
+const inviteToken = z
+  .string()
+  .min(1)
+  .describe("the token from the invite link, the part after /invites/")
+
+/** Invites email addresses to a team with one role. */
 export const createTeamInvite = defineTool({
   name: "create_team_invite",
-  description: "Invite an account to a team by email.",
+  description:
+    "Invite email addresses to a team with one role. Each address gets a result: sent, already_member, or already_invited (resend that one instead). Each link expires after 7 days, and the team can send a limited number of invite emails per hour.",
   mutating: true,
   input: {
     teamId: teamId("id of the team to invite into"),
-    email: z.string().min(1).describe("email address of the account to invite"),
-    role: role.describe("role the invite grants: owner, manager, or viewer"),
+    emails: z
+      .array(z.string().min(1))
+      .min(1)
+      .max(20)
+      .describe("addresses to invite, with or without an account; up to 20"),
+    role: role.describe("role every invite grants: owner, manager, or viewer"),
     ...dryRunInput
   },
   run: async (session, input) => {
     const { data } = await session.client.api(InvitesApi).createTeamInvite({
       teamId: input.teamId,
-      createTeamInviteRequest: { email: input.email, role: input.role }
+      createTeamInviteRequest: { emails: input.emails, role: input.role }
     })
     return data
   }
 })
 
-/** Revokes a pending invite. */
-export const revokeTeamInvite = defineTool({
-  name: "revoke_team_invite",
-  description: "Revoke a pending team invite.",
+/** Mails a pending invite again with a new link. */
+export const resendTeamInvite = defineTool({
+  name: "resend_team_invite",
+  description:
+    "Mail a pending invite again with a new link that expires after 7 days; the old link stops working.",
   mutating: true,
   input: {
     teamId: teamId("id of the team"),
-    inviteId: z.string().min(1).describe("id of the invite to revoke"),
+    inviteId: z.string().min(1).describe("id of the invite to resend"),
+    ...dryRunInput
+  },
+  run: async (session, input) => {
+    const { data } = await session.client
+      .api(InvitesApi)
+      .resendTeamInvite({ teamId: input.teamId, inviteId: input.inviteId })
+    return data
+  }
+})
+
+/** Withdraws a pending invite. */
+export const revokeTeamInvite = defineTool({
+  name: "revoke_team_invite",
+  description: "Withdraw a pending team invite; its link stops working.",
+  mutating: true,
+  input: {
+    teamId: teamId("id of the team"),
+    inviteId: z.string().min(1).describe("id of the invite to withdraw"),
     ...dryRunInput
   },
   run: async (session, input) => {
@@ -139,6 +169,36 @@ export const revokeTeamInvite = defineTool({
       .api(InvitesApi)
       .deleteTeamInvite({ teamId: input.teamId, inviteId: input.inviteId })
     return undefined
+  }
+})
+
+/** Reads the invite a link token names. */
+export const lookupInvite = defineTool({
+  name: "lookup_invite",
+  description:
+    "Read the invite an invite link names: the team, role, inviter and expiry, and forCaller, whether the signed-in account may accept it.",
+  mutating: false,
+  input: { token: inviteToken },
+  run: async (session, input) => {
+    const { data } = await session.client
+      .api(InvitesApi)
+      .lookupInvite({ acceptInviteRequest: { token: input.token } })
+    return data
+  }
+})
+
+/** Accepts the invite a link token names. */
+export const acceptInvite = defineTool({
+  name: "accept_invite",
+  description:
+    "Accept the invite an invite link names, joining its team. Only the account whose email the invite names can accept it.",
+  mutating: true,
+  input: { token: inviteToken, ...dryRunInput },
+  run: async (session, input) => {
+    const { data } = await session.client
+      .api(InvitesApi)
+      .acceptInvite({ acceptInviteRequest: { token: input.token } })
+    return data
   }
 })
 
@@ -151,5 +211,8 @@ export const memberTools: readonly Tool[] = [
   removeTeamMember,
   listTeamInvites,
   createTeamInvite,
-  revokeTeamInvite
+  resendTeamInvite,
+  revokeTeamInvite,
+  lookupInvite,
+  acceptInvite
 ]
