@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest"
 import { callTool } from "../../mcp.ts"
 import { Session } from "../../platform.ts"
 import {
+  acceptInvite,
   addTeamMember,
   createTeamInvite,
   getTeamMember,
   listTeamInvites,
   listTeamMembers,
+  lookupInvite,
   memberTools,
   removeTeamMember,
+  resendTeamInvite,
   revokeTeamInvite,
   updateTeamMember
 } from "../../tools/members.ts"
@@ -39,13 +42,14 @@ const MEMBERSHIP = {
 }
 
 const INVITE = {
-  id: "inv_1",
-  accountId: "acc_1",
+  id: "ivt_1",
   teamId: "team_2",
+  teamName: "lab",
+  email: "a@example.com",
   role: "manager",
-  status: "pending",
-  accountEmail: "a@example.com",
-  accountName: "A",
+  invitedBy: "acc_9",
+  inviterName: "B",
+  expiresAt: "2026-10-08T00:00:00.000Z",
   ...stamps
 }
 
@@ -63,8 +67,24 @@ const routes = {
   [`PATCH ${base}/members/mem_1`]: { status: 204 },
   [`DELETE ${base}/members/mem_1`]: { status: 204 },
   [`GET ${base}/invites`]: { status: 200, body: page([INVITE]) },
-  [`POST ${base}/invites`]: { status: 201, body: { data: INVITE } },
-  [`DELETE ${base}/invites/inv_1`]: { status: 204 }
+  [`POST ${base}/invites`]: {
+    status: 200,
+    body: {
+      data: {
+        items: [
+          { email: "a@example.com", result: "sent", invite: INVITE },
+          { email: "c@example.com", result: "already_member", invite: null }
+        ]
+      }
+    }
+  },
+  [`POST ${base}/invites/ivt_1/resend`]: { status: 200, body: { data: INVITE } },
+  [`DELETE ${base}/invites/ivt_1`]: { status: 204 },
+  ["POST /v1/invites/lookup"]: {
+    status: 200,
+    body: { data: { invite: INVITE, forCaller: true } }
+  },
+  ["POST /v1/invites/accept"]: { status: 201, body: { data: MEMBERSHIP } }
 }
 
 type Called = {
@@ -92,7 +112,10 @@ describe("member tools", () => {
       "remove_team_member",
       "list_team_invites",
       "create_team_invite",
-      "revoke_team_invite"
+      "resend_team_invite",
+      "revoke_team_invite",
+      "lookup_invite",
+      "accept_invite"
     ])
   })
 
@@ -103,10 +126,10 @@ describe("member tools", () => {
   })
 
   it("accepts an invite", async () => {
-    const { result, requests } = await call(addTeamMember, { teamId: "team_2", inviteId: "inv_1" })
+    const { result, requests } = await call(addTeamMember, { teamId: "team_2", inviteId: "ivt_1" })
     expect(result).toMatchObject({ ok: true, data: { id: "mem_1", status: "active" } })
     expect(requests).toMatchObject([
-      { method: "POST", path: `${base}/members`, body: { inviteId: "inv_1" } }
+      { method: "POST", path: `${base}/members`, body: { inviteId: "ivt_1" } }
     ])
   })
 
@@ -136,30 +159,67 @@ describe("member tools", () => {
 
   it("lists a team's invites", async () => {
     const { result, requests } = await call(listTeamInvites, { teamId: "team_2", limit: 10 })
-    expect(result).toMatchObject({ ok: true, data: { items: [{ id: "inv_1" }] } })
+    expect(result).toMatchObject({ ok: true, data: { items: [{ id: "ivt_1" }] } })
     expect(requests).toMatchObject([{ method: "GET", path: `${base}/invites` }])
   })
 
-  it("invites an account", async () => {
-    const input = { teamId: "team_2", email: "a@example.com", role: "manager" }
+  it("invites email addresses", async () => {
+    const input = { teamId: "team_2", emails: ["a@example.com", "c@example.com"], role: "manager" }
     const { result, requests } = await call(createTeamInvite, input)
-    expect(result).toMatchObject({ ok: true, data: { id: "inv_1", role: "manager" } })
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        items: [
+          { email: "a@example.com", result: "sent", invite: { id: "ivt_1" } },
+          { email: "c@example.com", result: "already_member", invite: null }
+        ]
+      }
+    })
     expect(requests).toMatchObject([
-      { method: "POST", path: `${base}/invites`, body: { email: "a@example.com", role: "manager" } }
+      {
+        method: "POST",
+        path: `${base}/invites`,
+        body: { emails: ["a@example.com", "c@example.com"], role: "manager" }
+      }
+    ])
+  })
+
+  it("resends an invite", async () => {
+    const { result, requests } = await call(resendTeamInvite, {
+      teamId: "team_2",
+      inviteId: "ivt_1"
+    })
+    expect(result).toMatchObject({ ok: true, data: { id: "ivt_1", email: "a@example.com" } })
+    expect(requests).toMatchObject([{ method: "POST", path: `${base}/invites/ivt_1/resend` }])
+  })
+
+  it("looks up an invite link", async () => {
+    const { result, requests } = await call(lookupInvite, { token: "qmi_abc" })
+    expect(result).toMatchObject({ ok: true, data: { invite: { id: "ivt_1" }, forCaller: true } })
+    expect(requests).toMatchObject([
+      { method: "POST", path: "/v1/invites/lookup", body: { token: "qmi_abc" } }
+    ])
+  })
+
+  it("accepts an invite link", async () => {
+    const { result, requests } = await call(acceptInvite, { token: "qmi_abc" })
+    expect(result).toMatchObject({ ok: true, data: { id: "mem_1", status: "active" } })
+    expect(requests).toMatchObject([
+      { method: "POST", path: "/v1/invites/accept", body: { token: "qmi_abc" } }
     ])
   })
 
   it("revokes an invite", async () => {
     const { result, requests } = await call(revokeTeamInvite, {
       teamId: "team_2",
-      inviteId: "inv_1"
+      inviteId: "ivt_1"
     })
     expect(result).toEqual({ ok: true })
-    expect(requests).toMatchObject([{ method: "DELETE", path: `${base}/invites/inv_1` }])
+    expect(requests).toMatchObject([{ method: "DELETE", path: `${base}/invites/ivt_1` }])
   })
 
   it.each([
-    [addTeamMember, { inviteId: "inv_1" }, "POST", `${base}/members`, { inviteId: "inv_1" }],
+    [addTeamMember, { inviteId: "ivt_1" }, "POST", `${base}/members`, { inviteId: "ivt_1" }],
     [
       updateTeamMember,
       { memberId: "mem_1", role: "owner" },
@@ -170,12 +230,13 @@ describe("member tools", () => {
     [removeTeamMember, { memberId: "mem_1" }, "DELETE", `${base}/members/mem_1`, undefined],
     [
       createTeamInvite,
-      { email: "a@example.com", role: "viewer" },
+      { emails: ["a@example.com"], role: "viewer" },
       "POST",
       `${base}/invites`,
-      { email: "a@example.com", role: "viewer" }
+      { emails: ["a@example.com"], role: "viewer" }
     ],
-    [revokeTeamInvite, { inviteId: "inv_1" }, "DELETE", `${base}/invites/inv_1`, undefined]
+    [resendTeamInvite, { inviteId: "ivt_1" }, "POST", `${base}/invites/ivt_1/resend`, undefined],
+    [revokeTeamInvite, { inviteId: "ivt_1" }, "DELETE", `${base}/invites/ivt_1`, undefined]
   ] as const)("plans %# on a dry run", async (tool, input, method, path, body) => {
     const { result, requests } = await call(tool, { teamId: "team_2", ...input, dryRun: true })
     expect(result).toEqual({
@@ -186,11 +247,23 @@ describe("member tools", () => {
     expect(requests).toEqual([])
   })
 
+  it("plans accepting an invite link on a dry run", async () => {
+    const { result, requests } = await call(acceptInvite, { token: "qmi_abc", dryRun: true })
+    expect(result).toEqual({
+      ok: true,
+      dryRun: true,
+      action: { method: "POST", path: "/v1/invites/accept", body: { token: "qmi_abc" } }
+    })
+    expect(requests).toEqual([])
+  })
+
   it.each([
     [listTeamMembers, {}],
     [getTeamMember, { teamId: "team_2" }],
     [updateTeamMember, { teamId: "team_2", memberId: "mem_1", role: "guest" }],
-    [createTeamInvite, { teamId: "team_2", email: "a@example.com", role: "guest" }]
+    [createTeamInvite, { teamId: "team_2", emails: ["a@example.com"], role: "guest" }],
+    [createTeamInvite, { teamId: "team_2", emails: [], role: "viewer" }],
+    [acceptInvite, { token: "" }]
   ] as const)("rejects invalid input to %#", async (tool, input) => {
     const { result, requests } = await call(tool, input)
     expect(result).toMatchObject({ ok: false, code: "usage" })
