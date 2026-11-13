@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path"
 
 import { CliError } from "../envelope.ts"
 import { defaultRawReplConfig, RawRepl, type RawReplConfig } from "./raw-repl.ts"
-import { isSdkPath, SDK_DIRS } from "./sdk.ts"
+import { DEVICE_SDK, FROZEN_SDK_PROBE, isSdkPath, SDK_DIRS, SDK_PACKAGE_DIR } from "./sdk.ts"
 import type { SerialPort } from "./serial.ts"
 
 /** One file of a project, at its path on the board. */
@@ -247,19 +247,63 @@ async function writeFile(repl: Repl, file: ProjectFile): Promise<void> {
 }
 
 /**
- * The sync itself, inside a raw REPL session the caller holds.
+ * Reads which device SDK release the board's firmware has frozen in, if any.
  *
  * @param repl - the session
- * @param files - the project's files
+ * @returns the release, or undefined on firmware without the SDK built in
+ * @throws {CliError} when the board raises
+ */
+export async function frozenSdk(repl: Repl): Promise<string | undefined> {
+  const version = (await run(repl, FROZEN_SDK_PROBE)).trim()
+  return version === "" ? undefined : version
+}
+
+/**
+ * Leaves the SDK's own package out of a deploy to firmware that has it frozen in. MicroPython
+ * imports frozen modules before `/lib`, so a copy there would never run.
+ *
+ * @param files - the project's files and the SDK's
+ * @param frozen - the release the firmware has frozen in, if any
+ * @param version - the release this deploy installs
+ * @returns the files to write
+ * @throws {CliError} when the firmware has another release frozen in
+ */
+export function withoutFrozenSdk(
+  files: ProjectFile[],
+  frozen: string | undefined,
+  version: string
+): ProjectFile[] {
+  if (frozen === undefined) {
+    return files
+  }
+  if (frozen !== version) {
+    throw new CliError(
+      `the board's firmware has the device SDK ${frozen} built in, not ${version}: run \`qualithm board flash\` to update it, then deploy again`,
+      "error"
+    )
+  }
+  return files.filter((f) => !f.path.startsWith(`${SDK_PACKAGE_DIR}/`))
+}
+
+/**
+ * The sync itself, inside a raw REPL session the caller holds. On firmware with the device SDK
+ * frozen in, the SDK's package isn't written, and a copy a previous deploy wrote is removed.
+ *
+ * @param repl - the session
+ * @param all - the project's files and the SDK's
  * @param dryRun - report what would change without changing it
+ * @param sdkVersion - the device SDK release among `all`
  * @returns what changed
- * @throws {CliError} when the board refuses a write or its filesystem is full
+ * @throws {CliError} when the board refuses a write, its filesystem is full, or its firmware has
+ *   another SDK release frozen in
  */
 export async function syncWith(
   repl: Repl,
-  files: ProjectFile[],
-  dryRun: boolean
+  all: ProjectFile[],
+  dryRun: boolean,
+  sdkVersion: string = DEVICE_SDK.version
 ): Promise<SyncResult> {
+  const files = withoutFrozenSdk(all, await frozenSdk(repl), sdkVersion)
   await run(repl, HELPERS)
   const paths = files.map((f) => f.path)
   // A JSON list of strings is also a Python list literal.
