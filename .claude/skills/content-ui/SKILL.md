@@ -10,9 +10,10 @@ description:
 
 Text inside the product: button and link labels, form labels and hints, empty states, error and
 validation messages, confirmations, success states, page titles and transactional email. This
-specializes the brand voice (the `brand` skill) for one content category. Positioning, voice,
-anti-voice and rhetorical devices are settled there and are not restated. What follows is how that
-voice produces UI text specifically. Agent-authoritative once landed.
+specializes the brand voice (the `brand` skill; load it and the `strategy` skill first) for one
+content category. Positioning, voice, anti-voice and rhetorical devices are settled there and are
+not restated. What follows is how that voice produces UI text specifically. Agent-authoritative once
+landed.
 
 ## Principles
 
