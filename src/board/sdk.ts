@@ -69,8 +69,21 @@ export const DEVICE_SDK: Sdk = {
   ]
 }
 
+/** The SDK's own package on the board, which a Qualithm firmware may freeze in instead. */
+export const SDK_PACKAGE_DIR = "/lib/qualithm_device"
+
+/**
+ * The board-side check for an SDK frozen into the firmware: prints the release the firmware's
+ * `qualithm_firmware` module names, or an empty line on firmware without one.
+ */
+export const FROZEN_SDK_PROBE = `try:
+    import qualithm_firmware
+    print(qualithm_firmware.SDK_VERSION)
+except ImportError:
+    print("")`
+
 /** Folders on the board that hold only the SDK, so a deploy clears anything else in them. */
-export const SDK_DIRS = ["/lib/qualithm_device", "/lib/umqtt"] as const
+export const SDK_DIRS = [SDK_PACKAGE_DIR, "/lib/umqtt"] as const
 
 /** Folders and files on the board that belong to the SDK a deploy installs. */
 export const SDK_PATHS = [...SDK_DIRS.map((d) => `${d}/`), "/lib/ssl.mpy"] as const
