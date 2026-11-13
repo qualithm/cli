@@ -19,6 +19,7 @@ import {
 } from "../../../board/esp32.ts"
 import type { Board } from "../../../board/pico.ts"
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
+import { DEVICE_SDK } from "../../../board/sdk.ts"
 import type { ControlSerialPort } from "../../../board/serial.ts"
 import { CliError } from "../../../envelope.ts"
 import { FakeBoard } from "./fake-board.ts"
@@ -186,8 +187,18 @@ describe("MICROPYTHON_ESP32", () => {
       expect(build.chip).toBe(chip)
       expect(build.version).toBe(MICROPYTHON_ESP32_VERSION)
       expect(build.sha256).toMatch(/^[0-9a-f]{64}$/)
-      expect(build.url).toMatch(/^https:\/\/micropython\.org\/.*-v1\.29\.0\.bin$/)
+      expect(build.url).toMatch(
+        build.frozenSdk === undefined
+          ? /^https:\/\/micropython\.org\/.*-v1\.29\.0\.bin$/
+          : /^https:\/\/github\.com\/qualithm\/micropython-firmware\/releases\/download\//
+      )
     }
+  })
+
+  it("puts Qualithm's build, with the SDK deploy installs frozen in, on the C3 alone", () => {
+    expect(MICROPYTHON_ESP32["ESP32-C3"].frozenSdk).toBe(DEVICE_SDK.version)
+    expect(MICROPYTHON_ESP32["ESP32-S3"].frozenSdk).toBeUndefined()
+    expect(MICROPYTHON_ESP32["ESP32-C6"].frozenSdk).toBeUndefined()
   })
 })
 

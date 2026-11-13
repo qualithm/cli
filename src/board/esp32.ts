@@ -24,14 +24,21 @@ export type Esp32Firmware = {
   sha256: string
   /** The chip ID the image header names. */
   imageChipId: number
+  /** The device SDK release a Qualithm build has frozen in; stock MicroPython has none. */
+  frozenSdk?: string
 }
 
 const MICROPYTHON = "https://micropython.org/resources/firmware"
+const QUALITHM_FIRMWARE = "https://github.com/qualithm/micropython-firmware/releases/download"
 
 /** The MicroPython release deploy puts on every ESP32 chip. */
 export const MICROPYTHON_ESP32_VERSION = "1.29.0"
 
-/** MicroPython 1.29.0 for each ESP32 chip, flashed whole at address 0. */
+/**
+ * MicroPython 1.29.0 for each ESP32 chip, flashed whole at address 0. The C3 gets Qualithm's
+ * build with the device SDK frozen in: stock MicroPython can't hold the SDK and a TLS handshake
+ * in the C3's memory at once (qualithm/pm#3670).
+ */
 export const MICROPYTHON_ESP32: Readonly<Record<Esp32Chip, Esp32Firmware>> = {
   "ESP32-S3": {
     chip: "ESP32-S3",
@@ -43,9 +50,10 @@ export const MICROPYTHON_ESP32: Readonly<Record<Esp32Chip, Esp32Firmware>> = {
   "ESP32-C3": {
     chip: "ESP32-C3",
     version: MICROPYTHON_ESP32_VERSION,
-    url: `${MICROPYTHON}/ESP32_GENERIC_C3-20260824-v1.29.0.bin`,
-    sha256: "bf72ed9eb88ad3a8f49d02c3d371f9ea34c90a8a303aeb9e324d8efd4a2a655a",
-    imageChipId: 5
+    url: `${QUALITHM_FIRMWARE}/0.1.0/micropython-firmware-0.1.0-esp32c3-unsigned.bin`,
+    sha256: "61b98885680ee15fa746ece193e604eb84d421c51ba88d3763b6346de4f3bdc7",
+    imageChipId: 5,
+    frozenSdk: "0.9.2"
   },
   "ESP32-C6": {
     chip: "ESP32-C6",
