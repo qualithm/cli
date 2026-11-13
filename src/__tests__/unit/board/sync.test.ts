@@ -5,9 +5,11 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
+import { DEVICE_SDK, FROZEN_SDK_PROBE } from "../../../board/sdk.ts"
 import {
   collectProject,
   emptiedDirs,
+  frozenSdk,
   MANIFEST,
   PROBE,
   probeSetup,
@@ -16,6 +18,7 @@ import {
   sha256,
   syncProject,
   syncWith,
+  withoutFrozenSdk,
   writeSetup
 } from "../../../board/sync.ts"
 import { FakeBoard } from "./fake-board.ts"
@@ -31,6 +34,8 @@ class FakeFs implements Repl {
   readonly ran: string[] = []
   failOn?: string
   error = "OSError: [Errno 28] ENOSPC"
+  /** The device SDK release the fake firmware has frozen in, if any. */
+  frozen?: string
   #open?: { path: string; chunks: Uint8Array[] }
 
   async exec(code: string): Promise<{ stdout: string; stderr: string }> {
@@ -43,6 +48,9 @@ class FakeFs implements Repl {
   }
 
   #run(code: string): string {
+    if (code === FROZEN_SDK_PROBE) {
+      return `${this.frozen ?? ""}\r\n`
+    }
     if (code === PROBE) {
       let setup: unknown
       try {
@@ -213,6 +221,67 @@ describe("emptiedDirs", () => {
       ["/a/b"]
     )
     expect(emptiedDirs(["/a/b/c.py", "/z/y.py"], [])).toEqual(["/a/b", "/a", "/z"])
+  })
+})
+
+describe("frozen device SDK", () => {
+  const sdk = [
+    file("/lib/qualithm_device/__init__.mpy", "i"),
+    file("/lib/qualithm_device/esp32.mpy", "e"),
+    file("/lib/umqtt/simple.mpy", "u"),
+    file("/lib/ssl.mpy", "s")
+  ]
+
+  it("reads the release the firmware has frozen in, or none", async () => {
+    const fs = new FakeFs()
+    expect(await frozenSdk(fs)).toBeUndefined()
+    fs.frozen = "0.9.2"
+    expect(await frozenSdk(fs)).toBe("0.9.2")
+  })
+
+  it("keeps every file on firmware without the SDK built in", () => {
+    expect(withoutFrozenSdk(sdk, undefined, "0.9.2")).toEqual(sdk)
+  })
+
+  it("leaves out the SDK's package, keeping its dependencies, when the release matches", () => {
+    expect(withoutFrozenSdk(sdk, "0.9.2", "0.9.2").map((f) => f.path)).toEqual([
+      "/lib/umqtt/simple.mpy",
+      "/lib/ssl.mpy"
+    ])
+  })
+
+  it("refuses firmware with another release built in", () => {
+    expect(() => withoutFrozenSdk(sdk, "0.9.1", "0.9.2")).toThrow(
+      "the board's firmware has the device SDK 0.9.1 built in, not 0.9.2: run `qualithm board flash` to update it, then deploy again"
+    )
+  })
+
+  it("writes no SDK package to firmware with it frozen in, and removes an old copy", async () => {
+    const fs = new FakeFs()
+    await syncWith(fs, [file("/main.py", "a"), ...sdk], false, "0.9.2")
+    expect(fs.files.has("/lib/qualithm_device/esp32.mpy")).toBe(true)
+    fs.frozen = "0.9.2"
+    const result = await syncWith(fs, [file("/main.py", "a"), ...sdk], false, "0.9.2")
+    expect(result).toEqual({
+      written: [],
+      removed: ["/lib/qualithm_device/__init__.mpy", "/lib/qualithm_device/esp32.mpy"],
+      unchanged: 3
+    })
+    expect([...fs.files.keys()].sort()).toEqual([
+      MANIFEST,
+      "/lib/ssl.mpy",
+      "/lib/umqtt/simple.mpy",
+      "/main.py"
+    ])
+  })
+
+  it("compares against the CLI's own SDK release by default", async () => {
+    const fs = new FakeFs()
+    fs.frozen = "0.0.1"
+    await expect(syncWith(fs, [file("/main.py", "a")], false)).rejects.toThrow(
+      `not ${DEVICE_SDK.version}`
+    )
+    expect(fs.files.size).toBe(0)
   })
 })
 
