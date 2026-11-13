@@ -164,7 +164,13 @@ describe("board tools", () => {
     }
     const reply = await consoleExchange(clientOf(ops), "abc", "x", 1)
     expect(reply.next).toBeGreaterThanOrEqual(20)
-    expect(ops.calls).toEqual(["write:abc:x"])
+    expect(ops.calls).toEqual(["write:abc:x\r\n"])
+  })
+
+  it("sends input that ends with a control character unchanged", async () => {
+    const ops = consoleOps([])
+    await consoleExchange(clientOf(ops), "abc", "\u0003", 1)
+    expect(ops.calls).toEqual(["write:abc:\u0003"])
   })
 })
 
