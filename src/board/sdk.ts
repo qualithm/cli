@@ -31,7 +31,7 @@ const indexFile = (path: string, sha256: string): SdkFile => ({
   sha256
 })
 
-const SDK_VERSION = "0.9.2"
+const SDK_VERSION = "0.9.3"
 
 /** Each module of the release and its SHA-256. */
 const SDK_MODULES: readonly (readonly [string, string])[] = [
@@ -48,9 +48,9 @@ const SDK_MODULES: readonly (readonly [string, string])[] = [
   ["_subject", "6aa20f20b336dc89c6790293d66d224f686fde6b4e38c6dc01621477d1e4cc72"],
   ["_time", "7af5a7a627e00423dd4908dcb34cc3814a8fae6ef0a539fad15e3b4a10c1a9ab"],
   ["board", "d32e166da6737b97582172f1b1d70c2726e666998c162e74e39cc08c2dd6a83c"],
-  ["esp32", "0ce9bd2e8758be54c724698c6bfd71a3fc0831450b311b5b7dab778ee8727ccd"],
+  ["esp32", "a28fcba546bbe5d4a8879e984fc5b323910bac65862a32b55bf8557bc7b5496b"],
   ["interfaces", "f2c0224899abdb26ea68b0fa882fe7b5440aacdf5c12e67af28a1d20df34e526"],
-  ["pico", "7a513cbb429d31c5716c5dc65a903a41e7bf069a132354aa08fde936112456fd"],
+  ["pico", "6bd4a4559a7b97da1bc4c53ad4306939833229f50eeeb3966954f9c3b2d24691"],
   ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"],
   ["virtual", "9689951dc6f95d6d8a3e0c72e94a73d2bfe170440acc999872d1f7b91c7a3f98"]
 ]
