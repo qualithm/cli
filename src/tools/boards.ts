@@ -80,12 +80,17 @@ async function logs(
   })) as LogPage
 }
 
+function endsWithControl(text: string): boolean {
+  return text.length > 0 && text.charCodeAt(text.length - 1) < 0x20
+}
+
 /**
  * Types `input` into a board's console and collects what it prints for `waitMs`.
  *
  * @param client - the core
  * @param serial - which board
- * @param input - the text to type; a trailing newline runs a line
+ * @param input - the text to type; a line ending is added unless it ends with a control
+ *   character, such as a line ending or Ctrl-C
  * @param waitMs - how long to collect output
  * @returns the board's output after the input
  */
@@ -100,7 +105,7 @@ export async function consoleExchange(
   await client.send({
     verb: "write",
     ...(serial === undefined ? {} : { serialNumber: serial }),
-    data: input
+    data: endsWithControl(input) ? input : `${input}\r\n`
   })
   let output = ""
   const deadline = Date.now() + waitMs
@@ -303,12 +308,12 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "board_console",
       description:
-        "Type into a running board's MicroPython prompt and return what it prints. End the input with a newline to run a line.",
+        "Type a line into a running board's MicroPython prompt and return what it prints. A line ending is added unless the input ends with a control character such as Ctrl-C.",
       mutating: true,
       local: true,
       input: {
         ...serialNumber,
-        input: z.string().min(1).describe("the text to type, e.g. `print(1 + 1)\\n`"),
+        input: z.string().min(1).describe("the line to type, e.g. `print(1 + 1)`"),
         waitMs: z
           .number()
           .int()
