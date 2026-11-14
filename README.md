@@ -135,6 +135,7 @@ Branch on the exit code or the envelope's `code`, never on the message:
 | 6    | `rate_limited` | too many requests; wait and retry        |
 | 7    | `api`          | any other API error                      |
 | 8    | `unavailable`  | the API is briefly unavailable; retry    |
+| 9    | `timeout`      | a wait ran out of time; wait again       |
 
 ## API Reference
 
