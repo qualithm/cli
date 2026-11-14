@@ -38,7 +38,8 @@ describe("exit codes", () => {
       conflict: 5,
       rate_limited: 6,
       api: 7,
-      unavailable: 8
+      unavailable: 8,
+      timeout: 9
     })
   })
 

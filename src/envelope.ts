@@ -13,6 +13,7 @@ export type ErrorCode =
   | "rate_limited"
   | "api"
   | "unavailable"
+  | "timeout"
 
 /** Exit codes, part of the CLI contract: scripts and agents branch on them. */
 export const EXIT_CODES: Readonly<Record<ErrorCode | "ok", number>> = {
@@ -24,7 +25,8 @@ export const EXIT_CODES: Readonly<Record<ErrorCode | "ok", number>> = {
   conflict: 5,
   rate_limited: 6,
   api: 7,
-  unavailable: 8
+  unavailable: 8,
+  timeout: 9
 }
 
 /** A mutation that a dry run planned but did not send. */

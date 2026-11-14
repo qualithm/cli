@@ -1,4 +1,10 @@
-import type { Device, DeviceCheck, DevicePage, DeviceStatePage } from "@qualithm/platform"
+import type {
+  Device,
+  DeviceCheck,
+  DevicePage,
+  DeviceState,
+  DeviceStatePage
+} from "@qualithm/platform"
 
 import { CliError } from "../envelope.ts"
 import { dash, table, when } from "../table.ts"
@@ -11,6 +17,7 @@ import {
 } from "../tools/devices.ts"
 import type { Decision } from "../tools/receipt.ts"
 import { getTeamDeviceState } from "../tools/teams.ts"
+import { waitForDevice } from "../tools/waits.ts"
 import {
   type Command,
   intOption,
@@ -103,7 +110,7 @@ export function metricsCell(metrics: Readonly<Record<string, number>>): string {
   return pairs.length === 0 ? "-" : pairs.join(" ")
 }
 
-/** `qualithm device …`: list, inspect, create, update and delete devices, and read their state. */
+/** `qualithm device …`: list, inspect, create, update and delete devices, read their state and wait for one to come online. */
 export const deviceCommands: readonly Command[] = [
   {
     path: ["device", "list"],
@@ -145,6 +152,19 @@ export const deviceCommands: readonly Command[] = [
           metricsCell(s.metrics)
         ])
       ])
+  },
+  {
+    path: ["device", "wait"],
+    tool: waitForDevice,
+    options: { timeout: { type: "string" } },
+    toInput: ({ values, positionals }: ParsedArgs): Record<string, unknown> => ({
+      deviceId: requirePositional(positionals, 0, "device id"),
+      timeoutSeconds: intOption(values, "timeout")
+    }),
+    human: (data: unknown): string => {
+      const state = data as DeviceState
+      return `device ${state.deviceId} is online, last seen ${when(state.lastSeenAt)}\n`
+    }
   },
   {
     path: ["device", "get"],
