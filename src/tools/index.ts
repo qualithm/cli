@@ -21,6 +21,7 @@ import { createScope, deleteScope, getScope, listScopes, updateScope } from "./s
 import { teamTools } from "./teams.ts"
 import { listApiTokens, revokeApiToken } from "./tokens.ts"
 import type { Tool } from "./tool.ts"
+import { waitTools } from "./waits.ts"
 import { workspaceTools } from "./workspace.ts"
 
 /**
@@ -44,6 +45,7 @@ export const TOOLS: readonly Tool[] = [
   listEnrollments,
   createEnrollment,
   revokeEnrollment,
+  ...waitTools,
   listScopes,
   getScope,
   createScope,

@@ -100,8 +100,8 @@ Flags, accepted by every verb before or after its arguments:
 Resources and verbs:
   authority  list | create | revoke <id>
   credential list | create | cert | rotate | revoke
-  device     list | get <id> | state | create | update <id> | delete <id>
-  enrollment list | create | revoke <id>
+  device     list | get <id> | state | wait <id> | create | update <id> | delete <id>
+  enrollment list | create | revoke <id> | wait <id>
   scope      list | get <id> | create | update <id> | delete <id>
   token      list | revoke <id>
   board      list | flash | reset | logs | console
@@ -111,6 +111,7 @@ Resources and verbs:
 Examples:
   qualithm login
   qualithm enrollment create --scope scp_defraa_123 --label lab-floor-2
+  qualithm enrollment wait enr_defraa_123 --timeout 600
   qualithm device list --json
   qualithm credential create --device dvc_defraa_123 --json
   qualithm credential revoke --device dvc_defraa_123 --credential crd_defraa_123 --dry-run
@@ -121,7 +122,7 @@ Examples:
 
 Exit codes:
   0 ok (incl. dry-run)  1 error  2 usage  3 auth  4 not-found  5 conflict
-  6 rate-limited        7 api    8 unavailable
+  6 rate-limited        7 api    8 unavailable  9 timeout
 `
 
 function findCommand(resource: string, verb: string): Command | undefined {

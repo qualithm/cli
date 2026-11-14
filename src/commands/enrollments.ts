@@ -1,8 +1,9 @@
-import type { EnrollmentCode, EnrollmentPage } from "@qualithm/platform"
+import type { Device, Enrollment, EnrollmentCode, EnrollmentPage } from "@qualithm/platform"
 
 import { CliError } from "../envelope.ts"
 import { dash, table, when } from "../table.ts"
 import { createEnrollment, listEnrollments, revokeEnrollment } from "../tools/enrollments.ts"
+import { waitForEnrollment } from "../tools/waits.ts"
 import {
   type Command,
   intOption,
@@ -11,7 +12,7 @@ import {
   stringOption
 } from "./command.ts"
 
-/** `qualithm enrollment …`: list, create and revoke one-time device claim codes. */
+/** `qualithm enrollment …`: list, create and revoke one-time device claim codes, and wait for one to be used. */
 export const enrollmentCommands: readonly Command[] = [
   {
     path: ["enrollment", "list"],
@@ -67,5 +68,18 @@ export const enrollmentCommands: readonly Command[] = [
       enrollmentId: requirePositional(positionals, 0, "enrollment id")
     }),
     human: (_data, input) => `enrollment ${String(input.enrollmentId)} revoked\n`
+  },
+  {
+    path: ["enrollment", "wait"],
+    tool: waitForEnrollment,
+    options: { timeout: { type: "string" } },
+    toInput: ({ values, positionals }) => ({
+      enrollmentId: requirePositional(positionals, 0, "enrollment id"),
+      timeoutSeconds: intOption(values, "timeout")
+    }),
+    human: (data: unknown): string => {
+      const { enrollment, device } = data as { enrollment: Enrollment; device: Device }
+      return `device ${device.id} (${device.name}) claimed enrollment ${enrollment.id}\n`
+    }
   }
 ]
