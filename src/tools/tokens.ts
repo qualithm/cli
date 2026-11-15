@@ -9,6 +9,7 @@ export const listApiTokens = defineTool({
   description:
     "List member API tokens for the token's team (metadata only; secrets are never listed).",
   mutating: false,
+  operations: ["listApiTokens"],
   input: pageInput,
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -22,6 +23,7 @@ export const revokeApiToken = defineTool({
   name: "revoke_api_token",
   description: "Revoke a member API token by id.",
   mutating: true,
+  operations: ["deleteApiToken"],
   input: { tokenId: z.string().min(1).describe("id of the API token to revoke"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()

@@ -18,6 +18,7 @@ export const listDashboards = defineTool({
   name: "list_dashboards",
   description: "List dashboards for the token's team.",
   mutating: false,
+  operations: ["listDashboards"],
   input: { ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -35,6 +36,7 @@ export const createDashboard = defineTool({
   name: "create_dashboard",
   description: "Create a dashboard, team-wide or bound to one scope.",
   mutating: true,
+  operations: ["createDashboard"],
   input: {
     name: z.string().min(1).describe("dashboard name"),
     scopeId: z
@@ -65,6 +67,7 @@ export const getDashboard = defineTool({
   name: "get_dashboard",
   description: "Fetch a single dashboard by id, including its widgets.",
   mutating: false,
+  operations: ["getDashboard"],
   input: { dashboardId: dashboardId("to fetch") },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -80,6 +83,7 @@ export const updateDashboard = defineTool({
   name: "update_dashboard",
   description: "Update a dashboard's name, scope, or widget layout.",
   mutating: true,
+  operations: ["updateDashboard"],
   input: {
     dashboardId: dashboardId("to update"),
     name: z.string().min(1).optional().describe("new dashboard name"),
@@ -108,6 +112,7 @@ export const deleteDashboard = defineTool({
   name: "delete_dashboard",
   description: "Delete a dashboard by id.",
   mutating: true,
+  operations: ["deleteDashboard"],
   input: { dashboardId: dashboardId("to delete"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()

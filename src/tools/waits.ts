@@ -99,6 +99,7 @@ export const waitForDevice = defineTool({
   description:
     "Wait until a device is online and return its state. Fails with code timeout if it is not online in time.",
   mutating: false,
+  operations: ["getDevice"],
   input: {
     deviceId: z.string().min(1).describe("id of the device to wait for"),
     ...timeoutInput
@@ -124,6 +125,7 @@ export const waitForEnrollment = defineTool({
   description:
     "Wait until a device uses an enrollment's claim code and return the enrollment and the device. Fails with code timeout if no device uses it in time, and code conflict if the code is revoked or expires.",
   mutating: false,
+  operations: ["getDevice"],
   input: {
     enrollmentId: z.string().min(1).describe("id of the enrollment whose claim code to wait on"),
     ...timeoutInput

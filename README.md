@@ -185,6 +185,17 @@ bun run test
 bun run test:coverage:unit
 ```
 
+### Route coverage
+
+Every `management` operation in the platform's OpenAPI document needs a tool. Each tool names the
+`operationId`s it calls in `operations`; an operation with no tool yet is listed in
+`UNTOOLED_OPERATIONS` (`src/tools/index.ts`) with the issue that tracks it. Platform CI runs the
+check on the spec it builds:
+
+```bash
+bun run route-coverage openapi.json
+```
+
 ### Linting & Formatting
 
 ```bash
