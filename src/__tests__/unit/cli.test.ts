@@ -140,6 +140,24 @@ describe("token revoke", () => {
     expect(c.err()).toBe("qualithm: token id is required\n")
   })
 
+  it("reports a team's spent write cap as rate limited, with the API's retry hint", async () => {
+    const refusal = {
+      status: 429,
+      body: { message: "team write rate exceeded: retry after 3s", code: "team_write_limited" }
+    }
+    const routes = { ...DEFAULT_ROUTES, "DELETE /v1/teams/team_1/api-tokens/tok_1": refusal }
+    const plain = capture({}, routes)
+    expect(await run(["token", "revoke", "tok_1"], plain.io)).toBe(6)
+    expect(plain.err()).toBe("qualithm: team write rate exceeded: retry after 3s\n")
+    const json = capture({}, routes)
+    expect(await run(["token", "revoke", "tok_1", "--json"], json.io)).toBe(6)
+    expect(JSON.parse(json.out())).toEqual({
+      ok: false,
+      code: "rate_limited",
+      message: "team write rate exceeded: retry after 3s"
+    })
+  })
+
   it("maps a missing token to the not-found exit code", async () => {
     const c = capture()
     expect(await run(["token", "delete", "tok_2"], c.io)).toBe(4)

@@ -6,7 +6,7 @@ import { buildMcpServer, callTool, type SessionFactory, toCallToolResult } from 
 import { Session } from "../../platform.ts"
 import { TOOLS } from "../../tools/index.ts"
 import { listApiTokens, revokeApiToken } from "../../tools/tokens.ts"
-import { fakePlatform, TOKEN } from "./fake-platform.ts"
+import { DEFAULT_ROUTES, fakePlatform, TOKEN } from "./fake-platform.ts"
 
 function sessions(): {
   newSession: SessionFactory
@@ -110,6 +110,26 @@ describe("over MCP", () => {
     const res = await client.callTool({ name: "revoke_api_token", arguments: { tokenId: "nope" } })
     expect(res.isError).toBe(true)
     expect(res.content).toEqual([{ type: "text", text: "not_found: not found" }])
+  })
+})
+
+describe("a team's spent write cap", () => {
+  it("names the refusal and keeps the API's retry hint", async () => {
+    const { fetch } = fakePlatform({
+      ...DEFAULT_ROUTES,
+      "DELETE /v1/teams/team_1/api-tokens/tok_1": {
+        status: 429,
+        body: { message: "team write rate exceeded: retry after 3s", code: "team_write_limited" }
+      }
+    })
+    const client = await connect(
+      (dryRun) => new Session({ token: "qmt_x", fetch, dryRun, userAgent: "test" })
+    )
+    const res = await client.callTool({ name: "revoke_api_token", arguments: { tokenId: "tok_1" } })
+    expect(res.isError).toBe(true)
+    expect(res.content).toEqual([
+      { type: "text", text: "rate_limited: team write rate exceeded: retry after 3s" }
+    ])
   })
 })
 
