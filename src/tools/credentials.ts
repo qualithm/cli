@@ -16,6 +16,7 @@ export const listCredentials = defineTool({
   name: "list_credentials",
   description: "List the credentials (tokens and certificates) for a device.",
   mutating: false,
+  operations: ["listDeviceCredentials"],
   input: { deviceId: deviceId("whose credentials to list") },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -31,6 +32,7 @@ export const createCredential = defineTool({
   name: "create_credential",
   description: "Create a token credential for a device. The plaintext secret is returned once.",
   mutating: true,
+  operations: ["createDeviceCredential"],
   input: {
     deviceId: deviceId("to create a credential for"),
     label: z.string().optional().describe("human-readable credential label"),
@@ -57,6 +59,7 @@ export const issueCert = defineTool({
   description:
     "Issue a client certificate for mutual TLS (mTLS) for a device from its certificate signing request (CSR). The certificate is returned once.",
   mutating: true,
+  operations: ["createDeviceCertificate"],
   input: {
     deviceId: deviceId("to issue a certificate for"),
     csrPem: z.string().min(1).describe("PEM-encoded certificate signing request"),
@@ -90,6 +93,7 @@ export const rotateCredential = defineTool({
   description:
     "Rotate a device credential, optionally revoking the old one. The new secret is returned once.",
   mutating: true,
+  operations: ["rotateDeviceCredential"],
   input: {
     deviceId: deviceId("that owns the credential"),
     credentialId: z.string().min(1).describe("id of the credential to rotate"),
@@ -116,6 +120,7 @@ export const revokeCredential = defineTool({
   name: "revoke_credential",
   description: "Revoke a device credential by id.",
   mutating: true,
+  operations: ["deleteDeviceCredential"],
   input: {
     deviceId: deviceId("that owns the credential"),
     credentialId: z.string().min(1).describe("id of the credential to revoke"),

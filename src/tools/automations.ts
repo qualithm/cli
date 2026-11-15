@@ -50,6 +50,7 @@ export const listAutomations = defineTool({
   name: "list_automations",
   description: "List automations for the token's team.",
   mutating: false,
+  operations: ["listAutomations"],
   input: { ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -68,6 +69,7 @@ export const createAutomation = defineTool({
   description:
     "Create an automation from a full trigger+chain payload, or from a catalogue template with slot values.",
   mutating: true,
+  operations: ["createAutomation"],
   input: {
     name: z.string().min(1).describe("automation name"),
     scopeId: scopeId("id of the scope to bind the automation to; omit for team-wide"),
@@ -108,6 +110,7 @@ export const getAutomation = defineTool({
   name: "get_automation",
   description: "Fetch a single automation by id, including its chain.",
   mutating: false,
+  operations: ["getAutomation"],
   input: { automationId: automationId("to fetch") },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -124,6 +127,7 @@ export const updateAutomation = defineTool({
   description:
     "Update an automation's name, scope, chain or template params, or enable or disable it.",
   mutating: true,
+  operations: ["updateAutomation"],
   input: {
     automationId: automationId("to update"),
     name: z.string().min(1).optional().describe("new automation name"),
@@ -162,6 +166,7 @@ export const deleteAutomation = defineTool({
   name: "delete_automation",
   description: "Delete an automation by id.",
   mutating: true,
+  operations: ["deleteAutomation"],
   input: { automationId: automationId("to delete"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -177,6 +182,7 @@ export const runAutomation = defineTool({
   name: "run_automation",
   description: "Queue a manual run of an automation.",
   mutating: true,
+  operations: ["createAutomationRun"],
   input: { automationId: automationId("to run"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -192,6 +198,7 @@ export const listAutomationRuns = defineTool({
   name: "list_automation_runs",
   description: "List execution summaries for an automation.",
   mutating: false,
+  operations: ["listAutomationRuns"],
   input: { automationId: automationId("to list runs for"), ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -223,6 +230,7 @@ export const listAutomationTemplates = defineTool({
   description:
     "List the automation template catalogue filtered to what a device declared it can do.",
   mutating: false,
+  operations: ["listDeviceAutomationTemplates"],
   input: {
     deviceId: z
       .string()
@@ -243,6 +251,7 @@ export const triggerAutomation = defineTool({
   name: "trigger_automation",
   description: "Fire an automation's webhook trigger, authenticated by its trigger secret.",
   mutating: true,
+  operations: ["triggerAutomation"],
   input: {
     secret: z.string().min(1).describe("webhook trigger secret for the automation"),
     context: params("optional context object passed to the chain"),
@@ -270,6 +279,7 @@ export const createAutomationTriggerSecret = defineTool({
   description:
     "Create a webhook trigger secret for an automation. The URL and secret are returned once.",
   mutating: true,
+  operations: ["createAutomationTriggerSecret"],
   input: { automationId: automationId("to create a trigger secret for"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()

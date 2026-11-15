@@ -149,6 +149,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "List the boards plugged into this computer: Pico 2 Ws running MicroPython or waiting in BOOTSEL to be flashed, and ESP32-S3, C3 and C6 boards.",
       mutating: false,
+      operations: [],
       local: true,
       input: {},
       run: async () => list(client)
@@ -157,6 +158,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       name: "flash_board",
       description: `Put MicroPython ${MICROPYTHON_PICO_2_W.version} on a plugged-in Pico 2 W or ESP32-S3, C3 or C6, blank or running, and check it came back running that release. Flashing an ESP32 erases its files.`,
       mutating: true,
+      operations: [],
       local: true,
       input: { ...serialNumber, ...dryRunInput },
       run: async (_session, input) => {
@@ -176,6 +178,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "Restart a running board, as its reset button would, and wait until it is running again.",
       mutating: true,
+      operations: [],
       local: true,
       input: { ...serialNumber, ...dryRunInput },
       run: async (_session, input) => {
@@ -194,6 +197,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "Put a MicroPython project folder on a plugged-in Pico 2 W or ESP32-S3, C3 or C6 and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a board that doesn't run it, and never touches the device's credential. With `virtual`, runs the project on this computer as a virtual device instead: no board, the host's network, and a device on the platform like any other; read its output with board_logs and serialNumber `virtual:<folder name>`.",
       mutating: true,
+      operations: ["createEnrollment", "listScopes"],
       local: true,
       input: {
         dir: z.string().min(1).describe("the project folder on this computer"),
@@ -285,6 +289,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "Read what a running board has printed. Pass the previous reply's `next` as `after` to read on; `waitMs` waits for new output.",
       mutating: false,
+      operations: [],
       local: true,
       input: {
         ...serialNumber,
@@ -310,6 +315,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "Type a line into a running board's MicroPython prompt and return what it prints. A line ending is added unless the input ends with a control character such as Ctrl-C.",
       mutating: true,
+      operations: [],
       local: true,
       input: {
         ...serialNumber,

@@ -14,6 +14,7 @@ export const getBillingSummary = defineTool({
   description:
     "Read the team's billing state for the current month: tier, limits, usage per dimension, and add-ons.",
   mutating: false,
+  operations: ["getBillingSummary"],
   input: {},
   run: async (session) => {
     const teamId = await session.teamId()
@@ -27,6 +28,7 @@ export const listInvoices = defineTool({
   name: "list_invoices",
   description: "List the team's invoices.",
   mutating: false,
+  operations: ["listInvoices"],
   input: { ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -43,6 +45,7 @@ export const previewTierChange = defineTool({
   name: "preview_tier_change",
   description: "Price a move to a paid tier without applying it. Read-only.",
   mutating: false,
+  operations: ["previewTierChange"],
   input: { tier: z.enum(tiers).describe("target paid tier to price") },
   run: async (session, input) => {
     const teamId = await session.teamId()

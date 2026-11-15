@@ -8,6 +8,7 @@ export const listTeams = defineTool({
   name: "list_teams",
   description: "List the teams the token's member belongs to.",
   mutating: false,
+  operations: ["listTeams"],
   input: { ...pageInput },
   run: async (session, input) => {
     const { data } = await session.client.api(TeamsApi).listTeams(input)
@@ -21,6 +22,7 @@ export const createTeam = defineTool({
   description:
     "Create a team with the caller as owner. The platform assigns the initial name; rename it with update_team.",
   mutating: true,
+  operations: ["createTeam"],
   input: { ...dryRunInput },
   run: async (session) => {
     const { data } = await session.client.api(TeamsApi).createTeam()
@@ -34,6 +36,7 @@ export const getTeam = defineTool({
   description:
     "Fetch a team with your role and the permissions you hold in it, so you can check before acting. Without an id, it's the team this server acts on.",
   mutating: false,
+  operations: ["getTeam"],
   input: {
     teamId: z
       .string()
@@ -53,6 +56,7 @@ export const updateTeam = defineTool({
   name: "update_team",
   description: "Rename a team.",
   mutating: true,
+  operations: ["updateTeam"],
   input: {
     teamId: z.string().min(1).describe("id of the team to rename"),
     name: z.string().min(1).describe("new team name"),
@@ -71,6 +75,7 @@ export const deleteTeam = defineTool({
   name: "delete_team",
   description: "Delete a team by id.",
   mutating: true,
+  operations: ["deleteTeam"],
   input: {
     teamId: z.string().min(1).describe("id of the team to delete"),
     ...dryRunInput
@@ -87,6 +92,7 @@ export const getTeamDeviceState = defineTool({
   description:
     "Read whether each device in a team is online, when it was last seen, and its latest metrics. Without an id, it's the team this server acts on.",
   mutating: false,
+  operations: ["listTeamDeviceStates"],
   input: {
     teamId: z
       .string()

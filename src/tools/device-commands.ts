@@ -8,6 +8,7 @@ export const listDeviceCommands = defineTool({
   name: "list_device_commands",
   description: "List command deliveries for a device (pending, sent, failed).",
   mutating: false,
+  operations: ["listDeviceCommands"],
   input: {
     deviceId: z.string().min(1).describe("id of the device to list commands for"),
     ...pageInput
@@ -24,6 +25,7 @@ export const sendDeviceCommand = defineTool({
   name: "send_device_command",
   description: "Queue a command for a device, idempotently via dedupKey.",
   mutating: true,
+  operations: ["createDeviceCommand"],
   input: {
     deviceId: z.string().min(1).describe("id of the device to command"),
     capability: z.string().min(1).describe("key of the declared capability to invoke"),
@@ -55,6 +57,7 @@ export const getDeviceCapabilities = defineTool({
   name: "get_device_capabilities",
   description: "List the capabilities a device declared in its connect-time manifest.",
   mutating: false,
+  operations: ["listDeviceCapabilities"],
   input: { deviceId: z.string().min(1).describe("id of the device to list capabilities for") },
   run: async (session, input) => {
     const teamId = await session.teamId()

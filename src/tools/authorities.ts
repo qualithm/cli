@@ -9,6 +9,7 @@ export const listAuthorities = defineTool({
   name: "list_authorities",
   description: "List device certificate authorities for the token's team.",
   mutating: false,
+  operations: ["listAuthorities"],
   input: pageInput,
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -23,6 +24,7 @@ export const createAuthority = defineTool({
   description:
     "Create a device certificate authority. Leave kind as platform and Qualithm generates and holds it; choose byo (bring your own) only to sign devices with an authority you already run.",
   mutating: true,
+  operations: ["createAuthority"],
   input: {
     name: z.string().min(1).describe("human-readable authority name"),
     kind: z
@@ -58,6 +60,7 @@ export const revokeAuthority = defineTool({
   name: "revoke_authority",
   description: "Revoke a device certificate authority by id.",
   mutating: true,
+  operations: ["deleteAuthority"],
   input: {
     authorityId: z.string().min(1).describe("id of the authority to revoke"),
     ...dryRunInput
