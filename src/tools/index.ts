@@ -71,6 +71,7 @@ export const TOOLS: readonly Tool[] = [
  * tool now calls.
  */
 export const UNTOOLED_OPERATIONS: Readonly<Record<string, string>> = {
+  createInvoiceDocument: "qualithm/pm#4077",
   listAutomationTemplates: "qualithm/pm#4063",
   testAutomation: "qualithm/pm#4062",
   testDraftAutomation: "qualithm/pm#4062",
