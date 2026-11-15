@@ -197,7 +197,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
       description:
         "Put a MicroPython project folder on a plugged-in Pico 2 W or ESP32-S3, C3 or C6 and restart it so main.py runs. Installs the Qualithm Device SDK beside it, writes only files that changed since the last deploy, flashes MicroPython first on a board that doesn't run it, and never touches the device's credential. With `virtual`, runs the project on this computer as a virtual device instead: no board, the host's network, and a device on the platform like any other; read its output with board_logs and serialNumber `virtual:<folder name>`.",
       mutating: true,
-      operations: [],
+      operations: ["createEnrollment", "listScopes"],
       local: true,
       input: {
         dir: z.string().min(1).describe("the project folder on this computer"),

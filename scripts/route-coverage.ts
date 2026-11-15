@@ -15,7 +15,15 @@ if (path === undefined) {
   process.stderr.write("route-coverage: usage: route-coverage <openapi.json>\n")
   process.exit(2)
 }
-const spec: unknown = JSON.parse(readFileSync(path, "utf8"))
+let spec: unknown
+try {
+  spec = JSON.parse(readFileSync(path, "utf8"))
+} catch (error) {
+  process.stderr.write(
+    `route-coverage: can't read ${path}: ${error instanceof Error ? error.message : String(error)}\n`
+  )
+  process.exit(2)
+}
 const problems = routeCoverage(spec, TOOLS, UNTOOLED_OPERATIONS)
 for (const problem of problems) {
   process.stderr.write(`route-coverage: ${problem}\n`)
