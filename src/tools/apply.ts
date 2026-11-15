@@ -50,6 +50,7 @@ export const applyManifest = defineTool({
   description:
     "Reconcile a device-as-code manifest: create each declared device missing from its scope, matched by name.",
   mutating: true,
+  operations: ["createDevice", "listDevices", "updateDevice"],
   input: {
     scopes: z
       .array(

@@ -10,6 +10,7 @@ export const listDevices = defineTool({
   description:
     "List the team's devices, optionally only those in one scope and every scope under it.",
   mutating: false,
+  operations: ["listDevices", "listScopeDevices"],
   input: {
     scopeId: z
       .string()
@@ -37,6 +38,7 @@ export const getDevice = defineTool({
   name: "get_device",
   description: "Fetch a single device by id.",
   mutating: false,
+  operations: ["getDevice"],
   input: { deviceId: z.string().min(1).describe("id of the device to fetch") },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -52,6 +54,7 @@ export const createDevice = defineTool({
   name: "create_device",
   description: "Create a device in a scope.",
   mutating: true,
+  operations: ["createDevice"],
   input: {
     scopeId: z.string().min(1).describe("id of the scope to create the device in"),
     ...dryRunInput
@@ -70,6 +73,7 @@ export const updateDevice = defineTool({
   name: "update_device",
   description: "Update a device's name or scope, or park or unpark it.",
   mutating: true,
+  operations: ["updateDevice"],
   input: {
     deviceId: z.string().min(1).describe("id of the device to update"),
     name: z.string().min(1).optional().describe("new device name"),
@@ -106,6 +110,7 @@ export const deleteDevice = defineTool({
   name: "delete_device",
   description: "Delete a device by id.",
   mutating: true,
+  operations: ["deleteDevice"],
   input: { deviceId: z.string().min(1).describe("id of the device to delete"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()

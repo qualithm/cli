@@ -35,6 +35,7 @@ export function agentTools(host: () => AgentHost = defaultAgentHost): Tool[] {
       description:
         "Register qualithm mcp with every agent installed on this computer: Claude desktop, Claude Code, the Codex app and the Codex CLI. Idempotent; reports each agent as not_installed, already_connected or connected. No token is written to any config",
       mutating: true,
+      operations: [],
       local: true,
       input: { ...dryRunInput },
       run: async (_session, input) =>
@@ -45,6 +46,7 @@ export function agentTools(host: () => AgentHost = defaultAgentHost): Tool[] {
       description:
         "Remove qualithm mcp from every agent installed on this computer. Reports each agent as not_installed, not_connected or removed",
       mutating: true,
+      operations: [],
       local: true,
       input: { ...dryRunInput },
       run: async (_session, input) =>

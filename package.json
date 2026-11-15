@@ -52,6 +52,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "prepublishOnly": "bun run clean && bun run build",
+    "route-coverage": "bun run scripts/route-coverage.ts",
     "start": "bun run src/bin/qualithm.ts",
     "test": "vitest run src/__tests__/unit",
     "test:coverage": "vitest run --coverage",

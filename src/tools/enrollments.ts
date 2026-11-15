@@ -8,6 +8,7 @@ export const listEnrollments = defineTool({
   name: "list_enrollments",
   description: "List one-time device enrollment claim codes for the token's team.",
   mutating: false,
+  operations: ["listEnrollments"],
   input: pageInput,
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -22,6 +23,7 @@ export const createEnrollment = defineTool({
   description:
     "Create a one-time device enrollment claim code. The plaintext code is returned once.",
   mutating: true,
+  operations: ["createEnrollment"],
   input: {
     scopeId: z.string().min(1).describe("id of the scope the device will enroll into"),
     label: z.string().optional().describe("human-readable label for the enrollment"),
@@ -54,6 +56,7 @@ export const revokeEnrollment = defineTool({
   name: "revoke_enrollment",
   description: "Revoke a device enrollment claim code by id.",
   mutating: true,
+  operations: ["deleteEnrollment"],
   input: {
     enrollmentId: z.string().min(1).describe("id of the enrollment to revoke"),
     ...dryRunInput
