@@ -28,6 +28,11 @@ export type Tool<Shape extends z.ZodRawShape = z.ZodRawShape> = {
   description: string
   /** Whether it changes state; a mutating tool's input carries `dryRun`. */
   mutating: boolean
+  /**
+   * The platform `operationId`s it calls, so the route coverage check can find a `management`
+   * operation no tool reaches. Empty for a tool that never calls the platform.
+   */
+  operations: readonly string[]
   /** True for a tool that acts on this computer, such as a plugged-in board, not the platform. */
   local?: boolean
   /** The input fields. */

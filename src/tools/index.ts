@@ -64,3 +64,15 @@ export const TOOLS: readonly Tool[] = [
   ...boardTools(socketClient()),
   ...agentTools()
 ]
+
+/**
+ * `management` operations no tool calls yet, each with the issue that tracks its tool. The route
+ * coverage check fails on any other untooled `management` operation, and on an entry here that a
+ * tool now calls.
+ */
+export const UNTOOLED_OPERATIONS: Readonly<Record<string, string>> = {
+  listAutomationTemplates: "qualithm/pm#4063",
+  testAutomation: "qualithm/pm#4062",
+  testDraftAutomation: "qualithm/pm#4062",
+  updateCapability: "qualithm/pm#4064"
+}

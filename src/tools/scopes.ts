@@ -12,6 +12,7 @@ export const listScopes = defineTool({
   description:
     "List the team's scopes, optionally only those in one device zone or directly under one parent scope.",
   mutating: false,
+  operations: ["listScopes"],
   input: {
     zone: zone.optional().describe("only the scopes in this device zone"),
     parentId: z.string().min(1).optional().describe("only the scopes directly under this scope"),
@@ -29,6 +30,7 @@ export const getScope = defineTool({
   name: "get_scope",
   description: "Fetch a single scope by id.",
   mutating: false,
+  operations: ["getScope"],
   input: { scopeId: z.string().min(1).describe("id of the scope to fetch") },
   run: async (session, input) => {
     const teamId = await session.teamId()
@@ -45,6 +47,7 @@ export const createScope = defineTool({
   description:
     "Create a scope: top-level in a device zone, or under a parent scope, which sets its zone.",
   mutating: true,
+  operations: ["createScope"],
   input: {
     name: z.string().min(1).describe("scope name, up to 64 characters"),
     zone: zone.optional().describe("device zone for a top-level scope; omit with parentId"),
@@ -74,6 +77,7 @@ export const updateScope = defineTool({
   name: "update_scope",
   description: "Rename a scope.",
   mutating: true,
+  operations: ["updateScope"],
   input: {
     scopeId: z.string().min(1).describe("id of the scope to rename"),
     name: z.string().min(1).describe("new scope name"),
@@ -95,6 +99,7 @@ export const deleteScope = defineTool({
   name: "delete_scope",
   description: "Delete a scope by id.",
   mutating: true,
+  operations: ["deleteScope"],
   input: { scopeId: z.string().min(1).describe("id of the scope to delete"), ...dryRunInput },
   run: async (session, input) => {
     const teamId = await session.teamId()

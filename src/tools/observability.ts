@@ -86,6 +86,7 @@ export const getTelemetry = defineTool({
   name: "get_telemetry",
   description: "Read bucketed telemetry points for a device metric over a time range.",
   mutating: false,
+  operations: ["listTelemetry"],
   input: {
     deviceId: z.string().min(1).describe("id of the device to read telemetry for"),
     metric: z.string().min(1).describe("metric name to read"),
@@ -130,6 +131,7 @@ export const streamEvents = defineTool({
   description:
     "Read a bounded batch from the team's live event stream; returns after limit events or the timeout.",
   mutating: false,
+  operations: ["streamEvents"],
   input: {
     limit: z
       .number()
@@ -179,6 +181,7 @@ export const getUsage = defineTool({
   name: "get_usage",
   description: "Read the team's current usage against its plan limits.",
   mutating: false,
+  operations: ["getUsage"],
   input: {},
   run: async (session) => {
     const teamId = await session.teamId()
@@ -192,6 +195,7 @@ export const getAuditLog = defineTool({
   name: "get_audit_log",
   description: "List audit-trail events for the token's team.",
   mutating: false,
+  operations: ["listAuditEvents"],
   input: { ...pageInput },
   run: async (session, input) => {
     const teamId = await session.teamId()
