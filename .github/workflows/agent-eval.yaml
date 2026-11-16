@@ -28,7 +28,7 @@ permissions:
 jobs:
   eval:
     name: Claim → connect → telemetry round-trip
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
     timeout-minutes: 15
     steps:
       - name: Checkout
