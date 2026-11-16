@@ -55,7 +55,7 @@ jobs:
   tag:
     if: ${{ !endsWith(github.repository, '-example') }}
     name: Tag main when version changes
-    runs-on: sandbox-standard
+    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
     timeout-minutes: 10
     steps:
       - name: Generate GitHub App token

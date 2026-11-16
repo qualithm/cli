@@ -44,7 +44,7 @@ jobs:
     if:
       github.event_name == 'pull_request' && !contains(fromJSON('["development", "test", "main"]'),
       github.head_ref)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
     timeout-minutes: 10
     steps:
       # The refresh reads the whole commit range; a retitle needs only the action.
