@@ -160,6 +160,24 @@ describe("Core", () => {
     })
   })
 
+  it("releases a board behind the verb using it, and reconnects it without waiting", async () => {
+    const ops = fakeOps()
+    ops.flash_ms = 20
+    const c = core(ops)
+    const flashing = c.handle(line({ verb: "flash", serialNumber: "abc" }))
+    const releasing = c.handle(line({ verb: "release", serialNumber: "abc" }))
+    const reconnected = await c.handle(line({ verb: "reconnect", serialNumber: "abc" }))
+    expect(reconnected).toEqual({ api: API_VERSION, ok: true, data: { serialNumber: "abc" } })
+    expect(await releasing).toMatchObject({ ok: true, data: { serialNumber: "abc" } })
+    await flashing
+    // Reconnecting skips the queue; the release waits for the flash to finish with the port.
+    expect(ops.calls).toEqual(["reconnect:abc", "flash:start:abc", "flash:end", "release:abc"])
+    expect(await c.handle(line({ verb: "release" }))).toMatchObject({
+      ok: false,
+      error: { code: "usage" }
+    })
+  })
+
   it("runs board verbs one at a time", async () => {
     const ops = fakeOps()
     ops.flash_ms = 20

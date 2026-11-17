@@ -1,3 +1,4 @@
+import { sameSerial } from "../board/discover.ts"
 import type { Board } from "../board/pico.ts"
 import type { SerialPort } from "../board/serial.ts"
 import { CliError } from "../envelope.ts"
@@ -52,6 +53,8 @@ const key = (board: Running): string => board.serialNumber?.toLowerCase() ?? boa
 export class Taps {
   readonly #deps: TapDeps
   readonly #buffers = new Map<string, Buffer>()
+  /** Serial numbers of boards whose ports are left alone until they're reconnected. */
+  readonly #released: string[] = []
   #held = 0
 
   constructor(deps: TapDeps) {
@@ -126,11 +129,50 @@ export class Taps {
   }
 
   /**
+   * Closes a board's port and leaves it closed until `reconnect`, so another program can open
+   * it. The board's buffered output is kept.
+   *
+   * @param serialNumber - the board's serial number; its other USB identities count too
+   */
+  async release(serialNumber: string): Promise<void> {
+    if (!this.isReleased(serialNumber)) {
+      this.#released.push(serialNumber)
+    }
+    await stop(
+      [...this.#buffers.values()].flatMap((b) =>
+        b.tap !== undefined && matches(b.board, serialNumber) ? [b.tap] : []
+      )
+    )
+  }
+
+  /**
+   * Lets a released board's port open again, on the next read or write.
+   *
+   * @param serialNumber - the board's serial number
+   */
+  reconnect(serialNumber: string): void {
+    for (let i = this.#released.length - 1; i >= 0; i--) {
+      if (sameSerial(this.#released[i] ?? "", serialNumber)) {
+        this.#released.splice(i, 1)
+      }
+    }
+  }
+
+  /**
+   * @param serialNumber - a board's serial number, if it has one
+   * @returns whether the board's port is released
+   */
+  isReleased(serialNumber: string | undefined): boolean {
+    return serialNumber !== undefined && this.#released.some((s) => sameSerial(s, serialNumber))
+  }
+
+  /**
    * Finds a board's buffer and opens its tap when none is open. While a verb holds the ports,
-   * a reader gets what is buffered and a writer is refused.
+   * a reader gets what is buffered and a writer is refused. A released board is refused.
    */
   async #attach(serialNumber: string | undefined, writing: boolean): Promise<Buffer> {
     const board = this.#deps.pick(await this.#deps.list(), serialNumber)
+    this.#refuseReleased(board)
     const id = key(board)
     let buffer = this.#buffers.get(id)
     if (buffer === undefined) {
@@ -148,8 +190,23 @@ export class Taps {
       return buffer
     }
     const port = await this.#deps.open(board)
+    // A release or a verb's hold that landed while the port opened keeps it closed.
+    if (this.isReleased(board.serialNumber) || this.#held > 0) {
+      await port.close()
+      this.#refuseReleased(board)
+      if (writing) {
+        throw busy()
+      }
+      return buffer
+    }
     buffer.tap = this.#read(buffer, port)
     return buffer
+  }
+
+  #refuseReleased(board: Running): void {
+    if (board.serialNumber !== undefined && this.isReleased(board.serialNumber)) {
+      throw released(board.serialNumber)
+    }
   }
 
   #read(buffer: Buffer, port: SerialPort): Tap {
@@ -181,12 +238,28 @@ export class Taps {
   }
 
   async #closeAll(): Promise<void> {
-    const taps = [...this.#buffers.values()].flatMap((b) => (b.tap === undefined ? [] : [b.tap]))
-    for (const tap of taps) {
-      tap.stopping = true
-    }
-    await Promise.all(taps.map(async (t) => t.reading))
+    await stop([...this.#buffers.values()].flatMap((b) => (b.tap === undefined ? [] : [b.tap])))
   }
+}
+
+/** Ends taps and waits until their ports are closed. */
+async function stop(taps: Tap[]): Promise<void> {
+  for (const tap of taps) {
+    tap.stopping = true
+  }
+  await Promise.all(taps.map(async (t) => t.reading))
+}
+
+function matches(board: Running, serialNumber: string): boolean {
+  return board.serialNumber !== undefined && sameSerial(board.serialNumber, serialNumber)
+}
+
+/**
+ * @param serialNumber - the released board's serial number
+ * @returns the error a verb on a released board fails with
+ */
+export function released(serialNumber: string): CliError {
+  return new CliError(`board ${serialNumber} is released: reconnect it first`, "conflict")
 }
 
 function boardRef(buffer: Buffer): LogPage["board"] {

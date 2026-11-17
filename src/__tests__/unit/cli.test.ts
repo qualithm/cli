@@ -195,6 +195,8 @@ describe("mcp", () => {
       "disconnect_agents",
       "flash_board",
       "list_boards",
+      "reconnect_board",
+      "release_board",
       "reset_board"
     ])
   })
