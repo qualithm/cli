@@ -32,6 +32,10 @@ const serialNumber = {
     .describe("the board's USB serial number, needed when more than one board is plugged in")
 }
 
+const namedBoard = {
+  serialNumber: z.string().min(1).describe("the board's USB serial number")
+}
+
 /** How the board tools find what a new board needs. */
 export type BoardToolOptions = {
   /** Finds the Wi-Fi details; the keychain alone by default, so an agent never sees them. */
@@ -335,6 +339,37 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
           return { board, input: input.input }
         }
         return consoleExchange(client, input.serialNumber, input.input, input.waitMs ?? 1000)
+      }
+    }),
+    defineTool({
+      name: "release_board",
+      description:
+        "Let go of a board's serial port so another program, such as mpremote, esptool or a virtual machine, can use the board. The other board tools leave it alone until reconnect_board.",
+      mutating: true,
+      operations: [],
+      local: true,
+      input: { ...namedBoard, ...dryRunInput },
+      run: async (_session, input) => {
+        if (input.dryRun === true) {
+          const board = pickBoard(await list(client), input.serialNumber)
+          return { serialNumber: input.serialNumber, board }
+        }
+        return client.send({ verb: "release", serialNumber: input.serialNumber })
+      }
+    }),
+    defineTool({
+      name: "reconnect_board",
+      description:
+        "Take back a board given to another program with release_board, so the board tools can use it again.",
+      mutating: true,
+      operations: [],
+      local: true,
+      input: { ...namedBoard, ...dryRunInput },
+      run: async (_session, input) => {
+        if (input.dryRun === true) {
+          return { serialNumber: input.serialNumber }
+        }
+        return client.send({ verb: "reconnect", serialNumber: input.serialNumber })
       }
     })
   ]

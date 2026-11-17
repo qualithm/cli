@@ -2,7 +2,7 @@ import { parseArgs } from "node:util"
 
 import type { FlashResult } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
-import type { DeployResult } from "../core/boards.ts"
+import type { DeployResult, Released } from "../core/boards.ts"
 import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
@@ -50,13 +50,15 @@ export const BOARD_USAGE = `Usage:
   qualithm board logs [--serial S] [-f]     print what a board has printed; -f keeps following
   qualithm board console [--serial S]       type into a board's prompt; Ctrl-] leaves
   qualithm board console --input TEXT       type TEXT and print what the board answers
+  qualithm board release --serial S         let another program, such as mpremote, use a board
+  qualithm board reconnect --serial S       use a released board again
 
 Flags:
   --serial string  the board's serial number, needed when more than one is plugged in;
                    virtual:<folder> for a virtual device
   --virtual        deploy to a virtual device on this computer, not a board
   --json           print one JSON envelope line
-  --dry-run        name the board a flash, reset or console input would act on
+  --dry-run        name the board a flash, reset, release or console input would act on
 `
 
 /** Ctrl-], the key that leaves the console, as telnet and screen use it. */
@@ -153,6 +155,15 @@ function human(verb: string, data: unknown, dryRun: boolean): string {
   if (verb === "list") {
     return boardsTable(data as Board[])
   }
+  if (verb === "release" || verb === "reconnect") {
+    const { serialNumber } = data as Released
+    if (dryRun) {
+      return `dry-run: would ${verb} ${serialNumber}\n`
+    }
+    return verb === "release"
+      ? `released ${serialNumber}: another program can use it until qualithm board reconnect --serial ${serialNumber}\n`
+      : `reconnected ${serialNumber}\n`
+  }
   if (dryRun && verb !== "deploy") {
     const { board } = data as { board: Board }
     const at = board.state === "bootsel" ? `BOOTSEL drive ${board.drive}` : where(board)
@@ -206,7 +217,22 @@ function inputFor(
       input.virtual = true
     }
   }
-  if (verb === "flash" || verb === "reset" || verb === "console" || verb === "deploy") {
+  if (verb === "release" || verb === "reconnect") {
+    if (serial === undefined) {
+      throw new CliError(
+        `board ${verb} needs --serial: name the board by its serial number`,
+        "usage"
+      )
+    }
+  }
+  if (
+    verb === "flash" ||
+    verb === "reset" ||
+    verb === "console" ||
+    verb === "deploy" ||
+    verb === "release" ||
+    verb === "reconnect"
+  ) {
     input.dryRun = values["dry-run"] === true
   }
   if (verb === "logs") {
@@ -231,7 +257,9 @@ const TOOL_NAMES: Readonly<Record<string, string | undefined>> = {
   flash: "flash_board",
   reset: "reset_board",
   logs: "board_logs",
-  console: "board_console"
+  console: "board_console",
+  release: "release_board",
+  reconnect: "reconnect_board"
 }
 
 function defaultSignal(): AbortSignal {

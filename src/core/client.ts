@@ -31,7 +31,9 @@ export async function sendCore(path: string, request: Unversioned<CoreRequest>):
   )
   if (!reply.ok) {
     const { code, message } = reply.error
-    throw code === "api_mismatch" ? stale : new CliError(message, code)
+    // A core that predates a verb doesn't know it: it's from an older qualithm.
+    const unknownVerb = code === "usage" && message.startsWith("bad request at verb:")
+    throw code === "api_mismatch" || unknownVerb ? stale : new CliError(message, code)
   }
   if (reply.api !== API_VERSION && request.verb !== "shutdown") {
     throw stale

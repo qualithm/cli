@@ -227,6 +227,8 @@ export function virtualOps(deps: VirtualDeps): BoardOps {
     flash: async () => unsupported("firmware to flash"),
     run: async () => unsupported("prompt to run code at"),
     write: async () => unsupported("console"),
+    release: async () => unsupported("port to release"),
+    reconnect: async () => unsupported("port to reconnect"),
     probe: async (serialNumber): Promise<ProbeResult> => {
       const d = device(serialNumber)
       const credential = (await readOrUndefined(join(d.dir, CREDENTIAL))) !== undefined
@@ -390,6 +392,8 @@ export function routedOps(boards: BoardOps, virtual: BoardOps): BoardOps {
     deploy: async (serialNumber, files, dryRun, setup) =>
       pick(serialNumber).deploy(serialNumber, files, dryRun, setup),
     probe: async (serialNumber) => pick(serialNumber).probe(serialNumber),
+    release: async (serialNumber) => pick(serialNumber).release(serialNumber),
+    reconnect: async (serialNumber) => pick(serialNumber).reconnect(serialNumber),
     close: async () => {
       await Promise.all([boards.close(), virtual.close()])
     }

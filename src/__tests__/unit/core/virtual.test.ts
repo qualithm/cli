@@ -223,10 +223,15 @@ describe("virtual device operations", () => {
     for (const call of [
       async () => ops.flash("virtual:demo"),
       async () => ops.run("virtual:demo", "print(1)"),
-      async () => ops.write("virtual:demo", "x")
+      async () => ops.write("virtual:demo", "x"),
+      async () => ops.release("virtual:demo"),
+      async () => ops.reconnect("virtual:demo")
     ]) {
       await expect(call()).rejects.toBeInstanceOf(CliError)
     }
+    await expect(ops.release("virtual:demo")).rejects.toThrow(
+      "a virtual device has no port to release: deploy to it, read its logs or reset it"
+    )
     await expect(ops.probe("virtual:Bad Name")).rejects.toMatchObject({ code: "not_found" })
     expect(await ops.list()).toEqual([])
   })
@@ -264,14 +269,16 @@ describe("routed operations", () => {
     await ops.write("abc", "x")
     await ops.logs("virtual:demo", 0, 0, 1)
     await ops.deploy("virtual:demo", [file("/main.py", "a")], false)
+    await ops.release("abc")
+    await ops.reconnect("virtual:demo")
     expect(await ops.list()).toEqual(await boards.list())
     await ops.close()
     const verbs = (calls: string[]): Set<string | undefined> =>
       new Set(calls.map((c) => c.split(":")[0]))
     expect(verbs(virtual.calls)).toEqual(
-      new Set(["probe", "reset", "run", "logs", "deploy", "close"])
+      new Set(["probe", "reset", "run", "logs", "deploy", "reconnect", "close"])
     )
-    expect(verbs(boards.calls)).toEqual(new Set(["probe", "flash", "write", "close"]))
+    expect(verbs(boards.calls)).toEqual(new Set(["probe", "flash", "write", "release", "close"]))
     expect(boards.calls.some((c) => c.includes("virtual:"))).toBe(false)
   })
 })

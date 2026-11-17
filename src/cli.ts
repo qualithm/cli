@@ -10,6 +10,7 @@ import { runAgents } from "./commands/agents.ts"
 import { applyCommands } from "./commands/apply.ts"
 import { type AuthIo, runAuth } from "./commands/auth.ts"
 import { authorityCommands } from "./commands/authorities.ts"
+import { automationCommands } from "./commands/automations.ts"
 import { type BoardIo, runBoard } from "./commands/boards.ts"
 import type { Command, ToolCommand } from "./commands/command.ts"
 import { credentialCommands } from "./commands/credentials.ts"
@@ -50,6 +51,7 @@ export type CliIo = {
 /** Every command, in the order help lists them. */
 export const COMMANDS: readonly Command[] = [
   ...authorityCommands,
+  ...automationCommands,
   ...credentialCommands,
   ...deviceCommands,
   ...enrollmentCommands,
@@ -60,6 +62,7 @@ export const COMMANDS: readonly Command[] = [
 
 const RESOURCE_ALIASES: Readonly<Record<string, string>> = {
   authorities: "authority",
+  automations: "automation",
   credentials: "credential",
   devices: "device",
   enrollments: "enrollment",
@@ -99,6 +102,7 @@ Flags, accepted by every verb before or after its arguments:
 
 Resources and verbs:
   authority  list | create | revoke <id>
+  automation runs <id>
   credential list | create | cert | rotate | revoke
   device     list | get <id> | state | wait <id> | create | update <id> | delete <id>
   enrollment list | create | revoke <id> | wait <id>

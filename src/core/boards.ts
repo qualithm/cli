@@ -22,7 +22,7 @@ import {
   type SyncResult
 } from "../board/sync.ts"
 import { CliError } from "../envelope.ts"
-import { type LogPage, Taps } from "./taps.ts"
+import { type LogPage, released, Taps } from "./taps.ts"
 
 /** A board the core acted on. */
 export type BoardRef = { port: string; serialNumber?: string }
@@ -72,9 +72,19 @@ export type BoardOps = {
   ) => Promise<DeployResult>
   /** What a board holds for joining the platform; a blank board holds nothing. */
   probe: (serialNumber: string | undefined) => Promise<ProbeResult>
+  /**
+   * Closes a board's port once any verb on it has finished, and leaves it closed until
+   * `reconnect`, so another program can use the board.
+   */
+  release: (serialNumber: string) => Promise<Released>
+  /** Lets the core use a released board's port again. */
+  reconnect: (serialNumber: string) => Promise<Released>
   /** Releases every port the operations hold open. */
   close: () => Promise<void>
 }
+
+/** The board a `release` or `reconnect` named. */
+export type Released = { serialNumber: string }
 
 /** What the board operations reach for. */
 export type BoardDeps = {
@@ -240,11 +250,19 @@ export function boardOps(deps: BoardDeps): BoardOps {
     }
     return port
   }
+  const taps = new Taps({ ...deps, open, pick: pickRunning })
+  // A board whose port was released is another program's until it's reconnected.
+  const refuse = (board: Board): void => {
+    if (board.serialNumber !== undefined && taps.isReleased(board.serialNumber)) {
+      throw released(board.serialNumber)
+    }
+  }
   const withBoard = async <T>(
     serialNumber: string | undefined,
     work: (port: SerialPort, board: Running) => Promise<T>
   ): Promise<{ board: Running; result: T }> => {
     const board = pickRunning(await deps.list(), serialNumber)
+    refuse(board)
     const port = await open(board)
     try {
       return { board, result: await work(port, board) }
@@ -252,7 +270,6 @@ export function boardOps(deps: BoardDeps): BoardOps {
       await port.close()
     }
   }
-  const taps = new Taps({ ...deps, open, pick: pickRunning })
   // An ESP32's USB identity doesn't say what it runs; a Pico running MicroPython says so itself.
   const runsMicroPython = async (board: Board): Promise<boolean> => {
     if (board.state !== "esp32") {
@@ -272,7 +289,11 @@ export function boardOps(deps: BoardDeps): BoardOps {
   }
   return {
     list: deps.list,
-    flash: async (serialNumber) => taps.hold(async () => deps.flash(serialNumber)),
+    flash: async (serialNumber) =>
+      taps.hold(async () => {
+        refuse(pickBoard(await deps.list(), serialNumber))
+        return deps.flash(serialNumber)
+      }),
     reset: async (serialNumber) =>
       taps.hold(async () => {
         const { board } = await withBoard(serialNumber, async (port, target) => {
@@ -293,6 +314,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
     probe: async (serialNumber) =>
       taps.hold(async () => {
         const target = pickBoard(await deps.list(), serialNumber)
+        refuse(target)
         if (target.state === "bootsel" || !(await runsMicroPython(target))) {
           return { blank: true, credential: false, claimCode: false }
         }
@@ -306,6 +328,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
         const files = [...project, ...(await deps.sdk())]
         let flashed: string | undefined
         const target = pickBoard(await deps.list(), serialNumber)
+        refuse(target)
         if (target.state === "bootsel" || !(await runsMicroPython(target))) {
           if (dryRun) {
             // A blank board would be flashed, then get every file.
@@ -329,6 +352,18 @@ export function boardOps(deps: BoardDeps): BoardOps {
     logs: async (serialNumber, after, waitMs, limit) =>
       taps.logs(serialNumber, after, waitMs, limit),
     write: async (serialNumber, data) => taps.write(serialNumber, data),
+    release: async (serialNumber) => {
+      // A board already given away may be in the other program's hands, off this computer's USB.
+      if (!taps.isReleased(serialNumber)) {
+        pickBoard(await deps.list(), serialNumber)
+      }
+      await taps.release(serialNumber)
+      return { serialNumber }
+    },
+    reconnect: async (serialNumber) => {
+      taps.reconnect(serialNumber)
+      return Promise.resolve({ serialNumber })
+    },
     close: async () => taps.close()
   }
 }

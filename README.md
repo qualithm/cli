@@ -95,6 +95,25 @@ qualithm board reset --serial virtual:my-sensor
 
 An agent does the same through the `deploy_project` tool with `virtual: true`.
 
+### Use a board with another program
+
+Once Qualithm has read a board's output, it keeps the board's serial port open. To use the board
+with another program, such as `mpremote`, `esptool` or a virtual machine, release it first:
+
+```bash
+qualithm board release --serial <serial-number>
+```
+
+Qualithm closes the port and leaves the board alone. The other `qualithm board` commands refuse the
+board until you take it back:
+
+```bash
+qualithm board reconnect --serial <serial-number>
+```
+
+`qualithm board list` shows each board's serial number. An agent does the same through the
+`release_board` and `reconnect_board` tools.
+
 ### Connect your agent
 
 ```bash
