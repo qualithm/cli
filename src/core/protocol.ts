@@ -11,6 +11,7 @@ export const MAX_WAIT_MS = 30000
 export const MAX_LIMIT = 1000
 
 const serialNumber = z.string().min(1).optional()
+const named = z.string().min(1)
 
 const requestSchema = z.discriminatedUnion("verb", [
   z.object({ api: z.number().int(), verb: z.literal("hello") }),
@@ -42,7 +43,9 @@ const requestSchema = z.discriminatedUnion("verb", [
       })
       .optional()
   }),
-  z.object({ api: z.number().int(), verb: z.literal("probe"), serialNumber })
+  z.object({ api: z.number().int(), verb: z.literal("probe"), serialNumber }),
+  z.object({ api: z.number().int(), verb: z.literal("release"), serialNumber: named }),
+  z.object({ api: z.number().int(), verb: z.literal("reconnect"), serialNumber: named })
 ])
 
 /** One request line a client sends the core. */

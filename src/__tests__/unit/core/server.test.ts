@@ -201,6 +201,20 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
     close()
   })
 
+  it("asks to stop a core too old to know the verb", async () => {
+    const path = socketIn()
+    const message = "bad request at verb: Invalid discriminator value. Expected 'hello'"
+    const refusal = { api: API_VERSION, ok: false, error: { code: "usage", message } }
+    const close = await rawServer(path, `${JSON.stringify(refusal)}\n`)
+    await expect(sendCore(path, { verb: "release", serialNumber: "abc" })).rejects.toMatchObject({
+      code: "conflict",
+      message: expect.stringMatching(
+        /^the running core is from another qualithm version/
+      ) as unknown
+    })
+    close()
+  })
+
   it("refuses a reply that isn't json", async () => {
     const path = socketIn()
     const close = await rawServer(path, "nope\n")

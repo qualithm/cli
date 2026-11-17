@@ -219,6 +219,37 @@ describe("boardOps", () => {
     expect(board.closed).toBe(true)
   })
 
+  it("lets go of a released board's port and refuses every verb on it until it's reconnected", async () => {
+    const board = new FakeBoard({ "print(42)": { stdout: "42\r\n" } })
+    const o = ops(board, undefined, {
+      flash: async () =>
+        Promise.resolve({ port: "/dev/cu.pico", version: "1.29.0", machine: "Pico" })
+    })
+    await o.logs(undefined, 0, 0, 10)
+    expect(await o.release("abc")).toEqual({ serialNumber: "abc" })
+    expect(board.closed).toBe(true)
+    const refusal = new CliError("board abc is released: reconnect it first", "conflict")
+    await expect(o.flash(undefined)).rejects.toEqual(refusal)
+    await expect(o.reset("abc")).rejects.toEqual(refusal)
+    await expect(o.run(undefined, "print(42)")).rejects.toEqual(refusal)
+    await expect(o.probe(undefined)).rejects.toEqual(refusal)
+    await expect(o.deploy(undefined, [], false)).rejects.toEqual(refusal)
+    await expect(o.logs(undefined, 0, 0, 10)).rejects.toEqual(refusal)
+    await expect(o.write(undefined, "x")).rejects.toEqual(refusal)
+    expect(await o.reconnect("ABC")).toEqual({ serialNumber: "ABC" })
+    expect((await o.run(undefined, "print(42)")).output).toBe("42\r\n")
+    expect(await o.flash(undefined)).toMatchObject({ version: "1.29.0" })
+  })
+
+  it("releases a board again while it's off USB, but never one it can't find", async () => {
+    const o = ops(new FakeBoard(), [[pico], []])
+    await o.release("abc")
+    expect(await o.release("abc")).toEqual({ serialNumber: "abc" })
+    await expect(o.release("def0")).rejects.toEqual(
+      new CliError("no board with serial number def0 is plugged in", "not_found")
+    )
+  })
+
   it("deploys to a running board and reports the sync", async () => {
     const board = new FakeBoard()
     const result = await ops(board).deploy(

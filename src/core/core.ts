@@ -90,6 +90,11 @@ export class Core {
       }
       case "probe":
         return this.#serial(async () => ops.probe(request.serialNumber))
+      // Behind any verb already queued, so a flash or reset finishes with the port first.
+      case "release":
+        return this.#serial(async () => ops.release(request.serialNumber))
+      case "reconnect":
+        return ops.reconnect(request.serialNumber)
       // Reading and typing skip the queue: a long read must not hold up a flash.
       case "logs":
         return ops.logs(
