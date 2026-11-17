@@ -6,6 +6,7 @@ import { type BoardOps, defaultBoardOps } from "./boards.ts"
 import { coreAnswers, sendCore } from "./client.ts"
 import { Core } from "./core.ts"
 import type { Hello } from "./protocol.ts"
+import { fileRecords, recordedOps } from "./records.ts"
 import { type CoreServer, defaultServeConfig, type ServeConfig, serveCore } from "./server.ts"
 import { corePath } from "./socket.ts"
 import { defaultVirtualOps, routedOps } from "./virtual.ts"
@@ -46,7 +47,10 @@ function print(io: CoreIo, json: boolean, result: Result, human: string): number
 
 async function runForeground(io: CoreIo, path: string, json: boolean): Promise<number> {
   let server: CoreServer | undefined
-  const ops = (io.boardOps ?? (() => routedOps(defaultBoardOps(), defaultVirtualOps())))()
+  const ops = (
+    io.boardOps ??
+    (() => recordedOps(routedOps(defaultBoardOps(), defaultVirtualOps()), fileRecords()))
+  )()
   const core = new Core(ops, VERSION, () => {
     void server?.close()
   })

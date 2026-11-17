@@ -2,6 +2,7 @@ import { parseArgs } from "node:util"
 
 import type { FlashResult } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
+import { DEVICE_SDK } from "../board/sdk.ts"
 import type { DeployResult, Released } from "../core/boards.ts"
 import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
@@ -10,7 +11,7 @@ import { VIRTUAL_PREFIX } from "../core/virtual.ts"
 import { CliError, EXIT_CODES, exitCode, failure, type Result } from "../envelope.ts"
 import { callTool, type SessionFactory } from "../mcp.ts"
 import { dash, table } from "../table.ts"
-import { boardTools, type ConsoleReply, tail } from "../tools/boards.ts"
+import { boardTools, type ConsoleReply, type ReportedBoard, tail } from "../tools/boards.ts"
 import { type Ask, type Provisioned, terminalWifi, type WifiLookup } from "../tools/provision.ts"
 import type { Decision } from "../tools/receipt.ts"
 import { terminalAsk } from "./ask.ts"
@@ -102,18 +103,25 @@ function where(board: { port: string; serialNumber?: string }): string {
   return board.serialNumber === undefined ? board.port : `${board.serialNumber} on ${board.port}`
 }
 
-function boardsTable(boards: Board[]): string {
+function boardsTable(boards: ReportedBoard[]): string {
   if (boards.length === 0) {
     return "no boards plugged in\n"
   }
-  return table([
-    ["STATE", "SERIAL", "WHERE"],
+  const rows = table([
+    ["STATE", "SERIAL", "WHERE", "SDK"],
     ...boards.map((b) =>
       b.state === "bootsel"
-        ? ["bootsel", dash(b.serialNumber), b.drive]
-        : [b.state, dash(b.serialNumber), b.port]
+        ? ["bootsel", dash(b.serialNumber), b.drive, dash(b.sdk)]
+        : [b.state, dash(b.serialNumber), b.port, dash(b.sdk)]
     )
   ])
+  const behind = boards
+    .filter((b) => b.sdkCurrent === false)
+    .map(
+      (b) =>
+        `${b.serialNumber ?? ""} holds Qualithm Device SDK ${b.sdk ?? ""}: deploy its project again to install ${DEVICE_SDK.version}\n`
+    )
+  return rows + behind.join("")
 }
 
 function deployed(
@@ -153,7 +161,7 @@ function deployed(
 
 function human(verb: string, data: unknown, dryRun: boolean): string {
   if (verb === "list") {
-    return boardsTable(data as Board[])
+    return boardsTable(data as ReportedBoard[])
   }
   if (verb === "release" || verb === "reconnect") {
     const { serialNumber } = data as Released
