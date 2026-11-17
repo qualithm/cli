@@ -173,3 +173,98 @@ describe("Taps", () => {
     expect(opens).toEqual(["/dev/cu.pico", "/dev/cu.new"])
   })
 })
+
+describe("Taps release and reconnect", () => {
+  const refusal = new CliError("board abc is released: reconnect it first", "conflict")
+
+  it("closes a released board's port and opens nothing until it's reconnected, keeping its output", async () => {
+    const first = new StreamPort()
+    const second = new StreamPort()
+    const { taps: t, opens } = taps([first, second])
+    first.say("before")
+    await t.logs(undefined, 0, 1000, 10)
+    await t.release("ABC")
+    expect(first.closed).toBe(true)
+    expect(t.isReleased("abc")).toBe(true)
+    await expect(t.logs("abc", 0, 0, 10)).rejects.toEqual(refusal)
+    await expect(t.write(undefined, "x")).rejects.toEqual(refusal)
+    expect(opens).toEqual(["/dev/cu.pico"])
+    t.reconnect("abc")
+    expect(t.isReleased("abc")).toBe(false)
+    second.say("after")
+    expect(await t.logs(undefined, 1, 1000, 10)).toMatchObject({
+      chunks: [{ seq: 2, text: "after" }]
+    })
+    const kept = await t.logs(undefined, 0, 0, 10)
+    expect(kept.chunks.map((c) => c.text)).toEqual(["before", "after"])
+    expect(opens).toEqual(["/dev/cu.pico", "/dev/cu.pico"])
+  })
+
+  it("follows a board across its serial numbers, and leaves other boards open", async () => {
+    const s3: Board = {
+      state: "esp32",
+      port: "/dev/cu.s3",
+      serialNumber: "441bf6f5521c0000",
+      vendorId: "303a",
+      productId: "4001"
+    }
+    const s3Port = new StreamPort("/dev/cu.s3")
+    const picoPort = new StreamPort()
+    const { taps: t } = taps([s3Port, picoPort], [[s3, pico]])
+    await t.logs("441bf6f5521c0000", 0, 0, 10)
+    await t.logs("abc", 0, 0, 10)
+    await t.release("44:1B:F6:F5:52:1C")
+    expect(s3Port.closed).toBe(true)
+    expect(picoPort.closed).toBe(false)
+    expect(t.isReleased("441bf6f5521c0000")).toBe(true)
+    expect(t.isReleased(undefined)).toBe(false)
+    await t.release("44:1B:F6:F5:52:1C")
+    t.reconnect("441bf6f5521c0000")
+    expect(t.isReleased("44:1B:F6:F5:52:1C")).toBe(false)
+  })
+
+  it("closes a port that finished opening after its board was released, or while a verb held it", async () => {
+    const opening: { done?: () => void } = {}
+    const slow = new StreamPort()
+    const { taps: t } = taps([slow, new StreamPort(), new StreamPort()], [[pico]], {
+      open: async () =>
+        new Promise((resolve) => {
+          opening.done = () => {
+            resolve(slow)
+          }
+        })
+    })
+    const reading = t.logs(undefined, 0, 0, 10)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await t.release("abc")
+    opening.done?.()
+    await expect(reading).rejects.toEqual(refusal)
+    expect(slow.closed).toBe(true)
+
+    t.reconnect("abc")
+    const held = new StreamPort()
+    const { taps: h } = taps([], [[pico]], {
+      open: async () => {
+        // The verb's hold starts while this port opens.
+        void h.hold(async () => new Promise((resolve) => setTimeout(resolve, 20)))
+        return Promise.resolve(held)
+      }
+    })
+    expect((await h.logs(undefined, 0, 0, 10)).chunks).toEqual([])
+    expect(held.closed).toBe(true)
+  })
+
+  it("refuses a writer whose port opened while a verb held it", async () => {
+    const held = new StreamPort()
+    const { taps: h } = taps([], [[pico]], {
+      open: async () => {
+        void h.hold(async () => new Promise((resolve) => setTimeout(resolve, 20)))
+        return Promise.resolve(held)
+      }
+    })
+    await expect(h.write(undefined, "x")).rejects.toEqual(
+      new CliError("the board is busy with a flash, reset or run: try again", "conflict")
+    )
+    expect(held.closed).toBe(true)
+  })
+})

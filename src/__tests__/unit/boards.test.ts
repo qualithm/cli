@@ -420,6 +420,34 @@ describe("qualithm board", () => {
     expect(r.out()).toBe("dry-run: would reset abc on /dev/cu.pico\n")
   })
 
+  it("releases a board for another program and reconnects it, by its serial number", async () => {
+    const ops = fakeOps()
+    const released = capture({ client: clientOf(ops) })
+    expect(await run(["board", "release", "--serial", "abc"], released)).toBe(0)
+    expect(released.out()).toBe(
+      "released abc: another program can use it until qualithm board reconnect --serial abc\n"
+    )
+    const back = capture({ client: clientOf(ops) })
+    expect(await run(["board", "reconnect", "--serial", "abc", "--json"], back)).toBe(0)
+    expect(JSON.parse(back.out())).toMatchObject({ ok: true, data: { serialNumber: "abc" } })
+    const human = capture({ client: clientOf(ops) })
+    expect(await run(["board", "reconnect", "--serial", "abc"], human)).toBe(0)
+    expect(human.out()).toBe("reconnected abc\n")
+    expect(ops.calls).toEqual(["release:abc", "reconnect:abc", "reconnect:abc"])
+    const dry = capture({ client: clientOf(ops) })
+    expect(await run(["board", "release", "--serial", "abc", "--dry-run"], dry)).toBe(0)
+    expect(dry.out()).toBe("dry-run: would release abc\n")
+    const dryBack = capture({ client: clientOf(ops) })
+    expect(await run(["board", "reconnect", "--serial", "abc", "--dry-run"], dryBack)).toBe(0)
+    expect(dryBack.out()).toBe("dry-run: would reconnect abc\n")
+    expect(ops.calls).toHaveLength(3)
+    const unnamed = capture({ client: clientOf(ops) })
+    expect(await run(["board", "release"], unnamed)).toBe(2)
+    expect(unnamed.err()).toBe(
+      "qualithm: board release needs --serial: name the board by its serial number\n"
+    )
+  })
+
   it("reports a failure with its exit code", async () => {
     const ops = fakeOps()
     ops.fail = new CliError("no board found", "not_found")

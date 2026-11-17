@@ -89,6 +89,17 @@ export function fakeOps(): FakeOps {
       ops.calls.push(`probe:${serialNumber ?? "-"}`)
       return Promise.resolve(ops.state)
     },
+    release: async (serialNumber) => {
+      ops.calls.push(`release:${serialNumber}`)
+      if (ops.fail !== undefined) {
+        throw ops.fail
+      }
+      return Promise.resolve({ serialNumber })
+    },
+    reconnect: async (serialNumber) => {
+      ops.calls.push(`reconnect:${serialNumber}`)
+      return Promise.resolve({ serialNumber })
+    },
     close: async () => {
       ops.calls.push("close")
       return Promise.resolve()
