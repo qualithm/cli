@@ -1,5 +1,3 @@
-import { DEVICE_SDK } from "../board/sdk.ts"
-
 /** One choice Qualithm made on the builder's behalf, in the platform's receipt shape. */
 export type Decision = {
   /** Stable identifier, for code. */
@@ -23,8 +21,8 @@ const DOCS = "https://docs.qualithm.com"
 export type BoardChoices = {
   /** The MicroPython release the board now runs, pinned by this CLI. */
   firmware?: string
-  /** Whether the run installed the Qualithm Device SDK, pinned by this CLI. */
-  sdk?: boolean
+  /** The Qualithm Device SDK release the run installed, pinned by this CLI. */
+  sdk?: string
   /** The scope a new device was set to claim itself into. */
   scopeId?: string
   /** The Wi-Fi network a new board was set to join; never its passphrase. */
@@ -48,11 +46,11 @@ export function boardDecisions(choices: BoardChoices): Decision[] {
       docsUrl: `${DOCS}/micropython#the-micropython-release`
     })
   }
-  if (choices.sdk === true) {
+  if (choices.sdk !== undefined && choices.sdk !== "") {
     decisions.push({
       key: "sdk",
       label: "Qualithm Device SDK",
-      value: DEVICE_SDK.version,
+      value: choices.sdk,
       source: "cli",
       docsUrl: `${DOCS}/micropython#the-device-sdk`
     })

@@ -11,7 +11,6 @@ import {
 import { openSerial } from "../board/native.ts"
 import { type Board, listBoards, resetBoard, runCode } from "../board/pico.ts"
 import { defaultRawReplConfig, type RawReplConfig } from "../board/raw-repl.ts"
-import { loadSdk } from "../board/sdk.ts"
 import { type ControlSerialPort, PortClosedError, type SerialPort } from "../board/serial.ts"
 import {
   probeBoard,
@@ -61,12 +60,13 @@ export type BoardOps = {
   /** Types text into a board's console. */
   write: (serialNumber: string | undefined, data: string) => Promise<BoardRef>
   /**
-   * Makes a board's files match a project plus the device SDK and restarts it, flashing MicroPython first when the
-   * board is blank.
+   * Makes a board's files match a project and the device SDK sent with it, and restarts it,
+   * flashing MicroPython first when the board is blank. `sdk` is the SDK release among `files`.
    */
   deploy: (
     serialNumber: string | undefined,
     files: ProjectFile[],
+    sdk: string,
     dryRun: boolean,
     setup?: Setup
   ) => Promise<DeployResult>
@@ -104,8 +104,6 @@ export type BoardDeps = {
   boot_timeout_ms: number
   /** How many output chunks each board's buffer keeps. */
   max_chunks: number
-  /** The device SDK files every deploy puts beside the project. */
-  sdk: () => Promise<ProjectFile[]>
 }
 
 /** A board that runs MicroPython, or an ESP32 that may: a verb finds out when it talks to it. */
@@ -323,9 +321,8 @@ export function boardOps(deps: BoardDeps): BoardOps {
         )
         return { blank: false, ...result }
       }),
-    deploy: async (serialNumber, project, dryRun, setup) =>
+    deploy: async (serialNumber, files, sdk, dryRun, setup) =>
       taps.hold(async () => {
-        const files = [...project, ...(await deps.sdk())]
         let flashed: string | undefined
         const target = pickBoard(await deps.list(), serialNumber)
         refuse(target)
@@ -345,7 +342,7 @@ export function boardOps(deps: BoardDeps): BoardOps {
           serialNumber ??= flash.serialNumber
         }
         const { board, result } = await withBoard(serialNumber, async (port) =>
-          syncProject(port, files, dryRun, deps.repl, setup)
+          syncProject(port, files, sdk, { dryRun, config: deps.repl, setup })
         )
         return { board: ref(board), ...result, ...(flashed === undefined ? {} : { flashed }) }
       }),
@@ -382,7 +379,6 @@ export function defaultBoardOps(): BoardOps {
     read_wait_ms: 100,
     boot_quiet_ms: 1000,
     boot_timeout_ms: 5000,
-    max_chunks: 5000,
-    sdk: async () => loadSdk()
+    max_chunks: 5000
   })
 }

@@ -104,13 +104,23 @@ describe("Core", () => {
     const ops = fakeOps()
     const data = Buffer.from("print(1)").toString("base64")
     const reply = await core(ops).handle(
-      line({ verb: "deploy", files: [{ path: "/main.py", data }], dryRun: true })
+      line({ verb: "deploy", files: [{ path: "/main.py", data }], sdk: "9.9.9", dryRun: true })
     )
     expect(reply).toMatchObject({ ok: true, data: { written: ["/main.py"] } })
-    expect(ops.calls).toEqual(["deploy:-:/main.py:true"])
-    const again = await core(ops).handle(line({ verb: "deploy", files: [{ path: "/a", data }] }))
+    expect(ops.calls).toEqual(["deploy:-:/main.py:9.9.9:true"])
+    const again = await core(ops).handle(
+      line({ verb: "deploy", files: [{ path: "/a", data }], sdk: "9.9.9" })
+    )
     expect(again).toMatchObject({ ok: true })
-    expect(ops.calls.at(-1)).toBe("deploy:-:/a:false")
+    expect(ops.calls.at(-1)).toBe("deploy:-:/a:9.9.9:false")
+  })
+
+  it("refuses a deploy that doesn't name the device SDK release it carries", async () => {
+    const ops = fakeOps()
+    const data = Buffer.from("print(1)").toString("base64")
+    const reply = await core(ops).handle(line({ verb: "deploy", files: [{ path: "/a", data }] }))
+    expect(reply).toMatchObject({ ok: false, error: { code: "usage" } })
+    expect(ops.calls).toEqual([])
   })
 
   it("probes a board and passes a deploy's setup through", async () => {
@@ -122,12 +132,13 @@ describe("Core", () => {
     })
     const setup = { provisioningUrl: "https://a.example", claimCode: "qmc_a.b" }
     const data = Buffer.from("x").toString("base64")
-    await c.handle(line({ verb: "deploy", files: [{ path: "/a", data }], setup }))
+    await c.handle(line({ verb: "deploy", files: [{ path: "/a", data }], sdk: "9.9.9", setup }))
     expect(ops.setups).toEqual([setup])
     const bad = await c.handle(
       line({
         verb: "deploy",
         files: [{ path: "/a", data }],
+        sdk: "9.9.9",
         setup: { ...setup, provisioningUrl: "http://x" }
       })
     )
@@ -136,7 +147,7 @@ describe("Core", () => {
 
   it("refuses a deploy file path that isn't absolute", async () => {
     const reply = await core().handle(
-      line({ verb: "deploy", files: [{ path: "main.py", data: "" }] })
+      line({ verb: "deploy", files: [{ path: "main.py", data: "" }], sdk: "9.9.9" })
     )
     expect(reply).toMatchObject({ ok: false, error: { code: "usage" } })
   })

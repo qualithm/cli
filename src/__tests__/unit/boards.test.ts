@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { DEVICE_SDK } from "../../board/sdk.ts"
+import { DEVICE_SDK, type LoadedSdk } from "../../board/sdk.ts"
 import { type CliIo, run } from "../../cli.ts"
 import { BOARD_USAGE, runBoard } from "../../commands/boards.ts"
 import type { BoardOps } from "../../core/boards.ts"
-import type { CoreClient } from "../../core/client.ts"
+import { type CoreClient, StaleCoreError } from "../../core/client.ts"
 import { Core } from "../../core/core.ts"
 import { API_VERSION } from "../../core/protocol.ts"
 import type { LogPage } from "../../core/taps.ts"
@@ -33,6 +33,21 @@ function clientOf(ops: BoardOps): CoreClient & { sent: string[] } {
   }
 }
 
+/** `client` until `served` requests in, when its core turns out to be from another version. */
+function staleAfter(served: number, client: CoreClient): CoreClient & { sent: () => number } {
+  let sent = 0
+  return {
+    sent: () => sent,
+    send: async (request) => {
+      sent++
+      if (sent > served) {
+        throw new StaleCoreError()
+      }
+      return client.send(request)
+    }
+  }
+}
+
 /** Board ops whose logs replay `pages` in turn, then stay quiet. */
 function consoleOps(pages: string[][]): ReturnType<typeof fakeOps> {
   const ops = fakeOps()
@@ -55,8 +70,12 @@ function consoleOps(pages: string[][]): ReturnType<typeof fakeOps> {
   return ops
 }
 
+/** The device SDK a test deploy sends: this CLI's release, with no files to download. */
+const noSdkFiles = async (): Promise<LoadedSdk> =>
+  Promise.resolve({ version: DEVICE_SDK.version, files: [] })
+
 const tool = (client: CoreClient, name: string): Tool => {
-  const found = boardTools(client).find((t) => t.name === name)
+  const found = boardTools(client, { sdk: noSdkFiles }).find((t) => t.name === name)
   if (found === undefined) {
     throw new Error(`no tool ${name}`)
   }
@@ -81,7 +100,7 @@ function capture(board: CliIo["board"]): Captured {
     },
     out: () => out,
     err: () => err,
-    ...(board === undefined ? {} : { board })
+    ...(board === undefined ? {} : { board: { sdk: noSdkFiles, ...board } })
   }
 }
 
@@ -190,9 +209,32 @@ describe("deploy", () => {
     const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, { dir })
     expect(result).toMatchObject({
       ok: true,
-      data: { written: ["/main.py"], decisions: boardDecisions({ sdk: true }) }
+      data: { written: ["/main.py"], decisions: boardDecisions({ sdk: DEVICE_SDK.version }) }
     })
-    expect(ops.calls).toEqual(["probe:-", "deploy:-:/main.py:false"])
+    expect(ops.calls).toEqual(["probe:-", `deploy:-:/main.py:${DEVICE_SDK.version}:false`])
+  })
+
+  it("sends the device SDK this CLI loads with the project, and names its release", async () => {
+    const ops = fakeOps()
+    const dir = await projectDir()
+    const sdk = async (): Promise<LoadedSdk> =>
+      Promise.resolve({
+        version: "7.7.7",
+        files: [{ path: "/lib/qualithm_device/pico.mpy", bytes: new Uint8Array([0x4d]) }]
+      })
+    const deploy = boardTools(clientOf(ops), { sdk }).find((t) => t.name === "deploy_project")
+    if (deploy === undefined) {
+      throw new Error("no deploy tool")
+    }
+    const result = await callTool(deploy, noSession, { dir })
+    expect(ops.calls).toEqual([
+      "probe:-",
+      "deploy:-:/main.py,/lib/qualithm_device/pico.mpy:7.7.7:false"
+    ])
+    expect(result).toMatchObject({
+      ok: true,
+      data: { decisions: boardDecisions({ sdk: "7.7.7" }) }
+    })
   })
 
   it("prints what it wrote, or would write", async () => {
@@ -220,7 +262,7 @@ describe("deploy", () => {
     expect(dry.out()).toBe(
       "would flash MicroPython 1.29.0 first\nwould write  /main.py\nwould remove /old.py\ndry-run: 2 change(s), 2 file(s) already match\n"
     )
-    expect(ops.calls[1]).toBe("deploy:abc:/main.py:false")
+    expect(ops.calls[1]).toBe(`deploy:abc:/main.py:${DEVICE_SDK.version}:false`)
   })
 
   it("deploys the current folder by default and names a missing one", async () => {
@@ -235,7 +277,8 @@ describe("deploy provisioning", () => {
   const deployTool = (client: CoreClient, network = "Home"): Tool => {
     const found = boardTools(client, {
       wifi: async (named) => Promise.resolve({ ...wifi, ssid: named ?? network }),
-      lookup: { networks: async () => Promise.resolve([network]) }
+      lookup: { networks: async () => Promise.resolve([network]) },
+      sdk: noSdkFiles
     }).find((t) => t.name === "deploy_project")
     if (found === undefined) {
       throw new Error("no deploy tool")
@@ -535,6 +578,50 @@ describe("qualithm board", () => {
     expect(c.err()).toBe("qualithm: boom\n")
   })
 
+  it("rides out a board restarting, being flashed or briefly unplugged", async () => {
+    const ops = consoleOps([["before\r\n"], ["after\r\n"]])
+    const { logs } = ops
+    const refusals = [
+      new CliError("no board found", "not_found"),
+      new CliError("the board is busy with a flash, reset or run: try again", "conflict"),
+      new CliError("the board on /dev/cu.pico disconnected", "unavailable")
+    ]
+    const controller = new AbortController()
+    let calls = 0
+    ops.logs = async (...args) => {
+      calls++
+      const refusal = calls === 1 ? undefined : refusals.shift()
+      if (refusal !== undefined) {
+        throw refusal
+      }
+      if (calls > 1) {
+        controller.abort()
+      }
+      return logs(...args)
+    }
+    const c = capture({ client: clientOf(ops), signal: controller.signal })
+    expect(await run(["board", "logs", "-f"], c)).toBe(0)
+    expect(c.out()).toBe("before\r\nafter\r\n")
+    expect(calls).toBe(5)
+  })
+
+  it("stops following a core from another version, saying how to fix it", async () => {
+    const client = staleAfter(1, clientOf(consoleOps([["boot\r\n"]])))
+    const c = capture({ client, signal: new AbortController().signal })
+    expect(await run(["board", "logs", "-f"], c)).toBe(5)
+    expect(c.out()).toBe("boot\r\n")
+    expect(c.err()).toBe(
+      "qualithm: the running core is from another qualithm version: run `qualithm core stop`, then try again\n"
+    )
+    expect(client.sent()).toBe(2)
+    const j = capture({
+      client: staleAfter(0, clientOf(fakeOps())),
+      signal: new AbortController().signal
+    })
+    expect(await run(["board", "logs", "-f", "--json"], j)).toBe(5)
+    expect(JSON.parse(j.out())).toMatchObject({ ok: false, code: "conflict" })
+  })
+
   it("runs an interactive console until Ctrl-] and stops reading", async () => {
     const ops = consoleOps([[">>> "], ["print(2)\r\n2\r\n>>> "]])
     async function* keys(): AsyncGenerator<Uint8Array | string> {
@@ -564,6 +651,53 @@ describe("qualithm board", () => {
     const c = capture({ client: clientOf(ops), stdin: keys(), signal: controller.signal })
     expect(await run(["board", "console"], c)).toBe(0)
     expect(ops.calls).toEqual(["write:-:a", "write:-:b"])
+  })
+
+  it("leaves the console once stopped, without waiting for a key", async () => {
+    const ops = consoleOps([])
+    const controller = new AbortController()
+    let type = (): void => undefined
+    const idle = new Promise<void>((resolve) => {
+      type = resolve
+    })
+    async function* keys(): AsyncGenerator<string> {
+      await idle
+      yield "x"
+    }
+    const c = capture({ client: clientOf(ops), stdin: keys(), signal: controller.signal })
+    setTimeout(() => {
+      controller.abort()
+    }, 20)
+    expect(await run(["board", "console"], c)).toBe(0)
+    type()
+    expect(ops.calls).toEqual([])
+    expect(c.err()).toBe(
+      "qualithm: connected; press Enter for a prompt, Ctrl-] leaves\n\nqualithm: left the console\n"
+    )
+  })
+
+  it("leaves the console without waiting for a key when its core is from another version", async () => {
+    const ops = consoleOps([[">>> "]])
+    let type = (): void => undefined
+    const idle = new Promise<void>((resolve) => {
+      type = resolve
+    })
+    async function* keys(): AsyncGenerator<string> {
+      await idle
+      yield "x"
+    }
+    const c = capture({
+      client: staleAfter(2, clientOf(ops)),
+      stdin: keys(),
+      signal: new AbortController().signal
+    })
+    expect(await run(["board", "console"], c)).toBe(5)
+    type()
+    expect(ops.calls).toEqual([])
+    expect(c.err()).toBe(
+      "qualithm: connected; press Enter for a prompt, Ctrl-] leaves\n" +
+        "qualithm: the running core is from another qualithm version: run `qualithm core stop`, then try again\n"
+    )
   })
 
   it("refuses an interactive console with --json", async () => {
@@ -608,7 +742,7 @@ describe("virtual deploy", () => {
     )
     expect(ops.calls).toEqual([
       `probe:${virtualOf(dir)}`,
-      `deploy:${virtualOf(dir)}:/main.py:false`
+      `deploy:${virtualOf(dir)}:/main.py:${DEVICE_SDK.version}:false`
     ])
     expect(ops.setups).toEqual([
       { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code" }

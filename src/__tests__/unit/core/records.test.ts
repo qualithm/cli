@@ -93,10 +93,10 @@ describe("fileRecords", () => {
 describe("recordedOps", () => {
   it("records the SDK release each deploy leaves and lists it with the board", async () => {
     const records = memoryRecords()
-    const ops = recordedOps(fakeOps(), records, "0.9.3")
+    const ops = recordedOps(fakeOps(), records)
     const before = await ops.list()
     expect(before[0]).not.toHaveProperty("sdk")
-    await ops.deploy("abc", [], false)
+    await ops.deploy("abc", [], "0.9.3", false)
     expect(records.calls).toEqual(["deployed:abc:0.9.3"])
     const after = (await ops.list()) as ListedBoard[]
     expect(after[0]).toMatchObject({ serialNumber: "abc", sdk: "0.9.3" })
@@ -106,15 +106,15 @@ describe("recordedOps", () => {
     const records = memoryRecords()
     const fake = fakeOps()
     fake.list = async () => Promise.resolve([{ state: "bootsel", drive: "/Volumes/RP2350" }])
-    const ops = recordedOps(fake, records, "0.9.3")
+    const ops = recordedOps(fake, records)
     expect(await ops.list()).toEqual([{ state: "bootsel", drive: "/Volumes/RP2350" }])
   })
 
   it("records nothing for a dry run or a virtual device", async () => {
     const records = memoryRecords()
     const fake = fakeOps()
-    const ops = recordedOps(fake, records, "0.9.3")
-    await ops.deploy("abc", [], true)
+    const ops = recordedOps(fake, records)
+    await ops.deploy("abc", [], "0.9.3", true)
     fake.deploy = async () =>
       Promise.resolve({
         board: { port: "virtual", serialNumber: "virtual:demo" },
@@ -122,14 +122,14 @@ describe("recordedOps", () => {
         removed: [],
         unchanged: 0
       })
-    await ops.deploy("virtual:demo", [], false)
+    await ops.deploy("virtual:demo", [], "0.9.3", false)
     expect(records.calls).toEqual([])
   })
 
   it("forgets a board once it's flashed", async () => {
     const records = memoryRecords()
     records.entries.set("abc", "0.9.3")
-    const ops = recordedOps(fakeOps(), records, "0.9.3")
+    const ops = recordedOps(fakeOps(), records)
     await ops.flash("abc")
     expect(records.calls).toEqual(["forget:abc"])
     expect(await ops.list()).toEqual([
@@ -139,7 +139,7 @@ describe("recordedOps", () => {
 
   it("passes every other verb through", async () => {
     const fake = fakeOps()
-    const ops = recordedOps(fake, memoryRecords(), "0.9.3")
+    const ops = recordedOps(fake, memoryRecords())
     await ops.reset("abc")
     expect(fake.calls).toEqual(["reset:abc"])
   })

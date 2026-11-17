@@ -2,9 +2,9 @@ import { parseArgs } from "node:util"
 
 import type { FlashResult } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
-import { DEVICE_SDK } from "../board/sdk.ts"
+import { DEVICE_SDK, type LoadedSdk } from "../board/sdk.ts"
 import type { DeployResult, Released } from "../core/boards.ts"
-import { type CoreClient, socketClient } from "../core/client.ts"
+import { type CoreClient, socketClient, StaleCoreError } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
 import type { LogPage } from "../core/taps.ts"
 import { VIRTUAL_PREFIX } from "../core/virtual.ts"
@@ -37,6 +37,8 @@ export type BoardIo = {
   ask?: Ask
   /** Where Wi-Fi networks and passphrases come from; the OS by default. */
   wifiLookup?: WifiLookup
+  /** Loads the device SDK a deploy installs; the release this CLI pins by default. */
+  sdk?: () => Promise<LoadedSdk>
 }
 
 /** The platform flags a deploy takes. */
@@ -64,6 +66,9 @@ Flags:
 
 /** Ctrl-], the key that leaves the console, as telnet and screen use it. */
 const LEAVE = 0x1d
+
+/** The end of the keys typed into the console. */
+const NO_MORE_KEYS: IteratorReturnResult<undefined> = { done: true, value: undefined }
 
 const OPTIONS = {
   serial: { type: "string" },
@@ -281,7 +286,17 @@ function defaultSignal(): AbortSignal {
 /** Codes a follower rides out: the board restarting, being flashed, or briefly unplugged. */
 const TRANSIENT = new Set(["not_found", "unavailable", "conflict"])
 
-/** Prints a board's output after `after` until `stop` fires, riding out restarts. */
+/** Whether a follower rides out `error`; a core from another version refuses until stopped. */
+function transient(error: unknown): boolean {
+  return (
+    error instanceof CliError && TRANSIENT.has(error.code) && !(error instanceof StaleCoreError)
+  )
+}
+
+/**
+ * Prints a board's output after `after` until `stop` fires, riding out restarts but not a core
+ * from another version.
+ */
 async function pump(
   io: BoardIo,
   client: CoreClient,
@@ -301,7 +316,7 @@ async function pump(
         limit: MAX_LIMIT
       })) as LogPage
     } catch (error) {
-      if (!(error instanceof CliError) || !TRANSIENT.has(error.code)) {
+      if (!transient(error)) {
         throw error
       }
       await new Promise((resolve) => setTimeout(resolve, 250))
@@ -338,9 +353,16 @@ async function interactive(
   const start = await tail(client, serial)
   io.stderr("qualithm: connected; press Enter for a prompt, Ctrl-] leaves\n")
   const reading = pump(io, client, serial, start, leave.signal)
+  // A pump that stops, or fails as on a core from another version, ends the wait for a key.
+  const stopped = reading.then(() => NO_MORE_KEYS)
+  const keys = stdin[Symbol.asyncIterator]()
   try {
-    for await (const chunk of stdin) {
-      const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk
+    for (;;) {
+      const key = await Promise.race([keys.next(), stopped])
+      if (key.done === true) {
+        break
+      }
+      const bytes = typeof key.value === "string" ? new TextEncoder().encode(key.value) : key.value
       const end = bytes.indexOf(LEAVE)
       const typed = new TextDecoder().decode(end === -1 ? bytes : bytes.slice(0, end))
       if (typed !== "") {
@@ -352,6 +374,8 @@ async function interactive(
     }
   } finally {
     leave.abort()
+    // Not awaited: once the pump stopped first, it waits on a key that may never come.
+    void keys.return?.()
     await reading
   }
   io.stderr("\nqualithm: left the console\n")
@@ -395,7 +419,15 @@ async function stream(
   if (values.json === true) {
     throw new CliError("an interactive console has no --json form: pass --input", "usage")
   }
-  return interactive(io, client, serial, io.stdin ?? terminalInput(), io.signal ?? defaultSignal())
+  const keys = io.stdin ?? terminalInput()
+  try {
+    return await interactive(io, client, serial, keys, io.signal ?? defaultSignal())
+  } finally {
+    if (keys === process.stdin) {
+      // A console that ended before the next key still reads the terminal, so the CLI can't exit.
+      process.stdin.destroy()
+    }
+  }
 }
 
 /** Runs a verb's board tool, with a terminal to ask on and a session for claiming. */
@@ -410,7 +442,8 @@ async function runTool(
   const lookup = io.wifiLookup ?? {}
   const tools = boardTools(client, {
     lookup,
-    ...(ask === undefined ? {} : { wifi: terminalWifi(ask, lookup) })
+    ...(ask === undefined ? {} : { wifi: terminalWifi(ask, lookup) }),
+    ...(io.sdk === undefined ? {} : { sdk: io.sdk })
   })
   const tool = tools.find((t) => t.name === name)
   if (tool === undefined) {

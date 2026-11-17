@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import { type FlashResult, pickBoard } from "../board/flash.ts"
-import { DEVICE_SDK } from "../board/sdk.ts"
+import { DEVICE_SDK, loadDeviceSdk, type LoadedSdk } from "../board/sdk.ts"
 import { collectProject, type Setup } from "../board/sync.ts"
 import { type DeployResult, pickRunning, type ProbeResult } from "../core/boards.ts"
 import type { CoreClient } from "../core/client.ts"
@@ -43,6 +43,8 @@ export type BoardToolOptions = {
   wifi?: WifiResolver
   /** What the default resolver and a dry run reach for. */
   lookup?: WifiLookup
+  /** Loads the device SDK a deploy sends the core; the release this CLI pins by default. */
+  sdk?: () => Promise<LoadedSdk>
 }
 
 /** Says why a deploy reached for the platform, keeping a CLI error's own code. */
@@ -165,6 +167,7 @@ export async function tail(client: CoreClient, serial: string | undefined): Prom
  */
 export function boardTools(client: CoreClient, options: BoardToolOptions = {}): Tool[] {
   const resolveWifi = options.wifi ?? keychainWifi(options.lookup)
+  const loadSdk = options.sdk ?? (async () => loadDeviceSdk())
 
   return [
     defineTool({
@@ -284,13 +287,17 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
             provisioned = { scopeId, wifiNetwork: wifi?.ssid ?? keep ?? "" }
           }
         }
+        // The SDK goes with the project, so the core installs this CLI's release however long
+        // it has been running.
+        const sdk = await loadSdk()
         const result = (await client.send({
           verb: "deploy",
           ...target,
-          files: files.map((f) => ({
+          files: [...files, ...sdk.files].map((f) => ({
             path: f.path,
             data: Buffer.from(f.bytes).toString("base64")
           })),
+          sdk: sdk.version,
           dryRun,
           ...(setup === undefined ? {} : { setup })
         })) as DeployResult
@@ -300,7 +307,7 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
         }
         const decisions = boardDecisions({
           firmware: result.flashed,
-          sdk: true,
+          sdk: sdk.version,
           scopeId: provisioned?.scopeId,
           wifiNetwork: provisioned?.wifiNetwork
         })
