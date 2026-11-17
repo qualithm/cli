@@ -6,7 +6,12 @@ import { boardDecisions } from "../../tools/receipt.ts"
 describe("boardDecisions", () => {
   it("lists what a deploy used, most consequential first", () => {
     expect(
-      boardDecisions({ firmware: "1.29.0", sdk: true, scopeId: "spc_1", wifiNetwork: "Home" })
+      boardDecisions({
+        firmware: "1.29.0",
+        sdk: DEVICE_SDK.version,
+        scopeId: "spc_1",
+        wifiNetwork: "Home"
+      })
     ).toEqual([
       {
         key: "firmware",
@@ -41,6 +46,6 @@ describe("boardDecisions", () => {
 
   it("leaves off what the run didn't use", () => {
     expect(boardDecisions({})).toEqual([])
-    expect(boardDecisions({ sdk: false, wifiNetwork: "" })).toEqual([])
+    expect(boardDecisions({ sdk: "", wifiNetwork: "" })).toEqual([])
   })
 })

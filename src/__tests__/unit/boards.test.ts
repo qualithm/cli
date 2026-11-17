@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { DEVICE_SDK } from "../../board/sdk.ts"
+import { DEVICE_SDK, type LoadedSdk } from "../../board/sdk.ts"
 import { type CliIo, run } from "../../cli.ts"
 import { BOARD_USAGE, runBoard } from "../../commands/boards.ts"
 import type { BoardOps } from "../../core/boards.ts"
@@ -55,8 +55,12 @@ function consoleOps(pages: string[][]): ReturnType<typeof fakeOps> {
   return ops
 }
 
+/** The device SDK a test deploy sends: this CLI's release, with no files to download. */
+const noSdkFiles = async (): Promise<LoadedSdk> =>
+  Promise.resolve({ version: DEVICE_SDK.version, files: [] })
+
 const tool = (client: CoreClient, name: string): Tool => {
-  const found = boardTools(client).find((t) => t.name === name)
+  const found = boardTools(client, { sdk: noSdkFiles }).find((t) => t.name === name)
   if (found === undefined) {
     throw new Error(`no tool ${name}`)
   }
@@ -81,7 +85,7 @@ function capture(board: CliIo["board"]): Captured {
     },
     out: () => out,
     err: () => err,
-    ...(board === undefined ? {} : { board })
+    ...(board === undefined ? {} : { board: { sdk: noSdkFiles, ...board } })
   }
 }
 
@@ -190,9 +194,32 @@ describe("deploy", () => {
     const result = await callTool(tool(clientOf(ops), "deploy_project"), noSession, { dir })
     expect(result).toMatchObject({
       ok: true,
-      data: { written: ["/main.py"], decisions: boardDecisions({ sdk: true }) }
+      data: { written: ["/main.py"], decisions: boardDecisions({ sdk: DEVICE_SDK.version }) }
     })
-    expect(ops.calls).toEqual(["probe:-", "deploy:-:/main.py:false"])
+    expect(ops.calls).toEqual(["probe:-", `deploy:-:/main.py:${DEVICE_SDK.version}:false`])
+  })
+
+  it("sends the device SDK this CLI loads with the project, and names its release", async () => {
+    const ops = fakeOps()
+    const dir = await projectDir()
+    const sdk = async (): Promise<LoadedSdk> =>
+      Promise.resolve({
+        version: "7.7.7",
+        files: [{ path: "/lib/qualithm_device/pico.mpy", bytes: new Uint8Array([0x4d]) }]
+      })
+    const deploy = boardTools(clientOf(ops), { sdk }).find((t) => t.name === "deploy_project")
+    if (deploy === undefined) {
+      throw new Error("no deploy tool")
+    }
+    const result = await callTool(deploy, noSession, { dir })
+    expect(ops.calls).toEqual([
+      "probe:-",
+      "deploy:-:/main.py,/lib/qualithm_device/pico.mpy:7.7.7:false"
+    ])
+    expect(result).toMatchObject({
+      ok: true,
+      data: { decisions: boardDecisions({ sdk: "7.7.7" }) }
+    })
   })
 
   it("prints what it wrote, or would write", async () => {
@@ -220,7 +247,7 @@ describe("deploy", () => {
     expect(dry.out()).toBe(
       "would flash MicroPython 1.29.0 first\nwould write  /main.py\nwould remove /old.py\ndry-run: 2 change(s), 2 file(s) already match\n"
     )
-    expect(ops.calls[1]).toBe("deploy:abc:/main.py:false")
+    expect(ops.calls[1]).toBe(`deploy:abc:/main.py:${DEVICE_SDK.version}:false`)
   })
 
   it("deploys the current folder by default and names a missing one", async () => {
@@ -235,7 +262,8 @@ describe("deploy provisioning", () => {
   const deployTool = (client: CoreClient, network = "Home"): Tool => {
     const found = boardTools(client, {
       wifi: async (named) => Promise.resolve({ ...wifi, ssid: named ?? network }),
-      lookup: { networks: async () => Promise.resolve([network]) }
+      lookup: { networks: async () => Promise.resolve([network]) },
+      sdk: noSdkFiles
     }).find((t) => t.name === "deploy_project")
     if (found === undefined) {
       throw new Error("no deploy tool")
@@ -608,7 +636,7 @@ describe("virtual deploy", () => {
     )
     expect(ops.calls).toEqual([
       `probe:${virtualOf(dir)}`,
-      `deploy:${virtualOf(dir)}:/main.py:false`
+      `deploy:${virtualOf(dir)}:/main.py:${DEVICE_SDK.version}:false`
     ])
     expect(ops.setups).toEqual([
       { provisioningUrl: "https://api.example.com", claimCode: "qmc_new.code" }

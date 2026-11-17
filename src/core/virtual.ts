@@ -5,8 +5,7 @@ import { homedir } from "node:os"
 import { basename, dirname, join } from "node:path"
 
 import { loadRuntime } from "../board/runtime.ts"
-import { loadSdk } from "../board/sdk.ts"
-import type { ProjectFile, Setup } from "../board/sync.ts"
+import type { Setup } from "../board/sync.ts"
 import { CliError } from "../envelope.ts"
 import type { BoardOps, BoardRef, DeployResult, ProbeResult } from "./boards.ts"
 import type { LogChunk, LogPage } from "./taps.ts"
@@ -85,8 +84,6 @@ export type VirtualDeps = {
   root: () => string
   /** The path of the MicroPython Unix port to run. */
   runtime: () => Promise<string>
-  /** The device SDK files every deploy puts beside the project. */
-  sdk: () => Promise<ProjectFile[]>
   /** Starts `main.py` in `cwd` under `runtime`. */
   launch: (runtime: string, cwd: string) => VirtualProcess
   /** How many output chunks each device's buffer keeps. */
@@ -247,9 +244,8 @@ export function virtualOps(deps: VirtualDeps): BoardOps {
       }
       return { blank: false, credential, claimCode }
     },
-    deploy: async (serialNumber, project, dryRun, setup?: Setup): Promise<DeployResult> => {
+    deploy: async (serialNumber, files, _sdk, dryRun, setup?: Setup): Promise<DeployResult> => {
       const d = device(serialNumber)
-      const files = [...project, ...(await deps.sdk())]
       const paths = new Set(files.map((f) => f.path))
       const written: string[] = []
       let unchanged = 0
@@ -363,7 +359,6 @@ export function defaultVirtualOps(): BoardOps {
   return virtualOps({
     root: () => virtualRoot(),
     runtime: async () => loadRuntime(),
-    sdk: async () => loadSdk(),
     launch: launchMicroPython,
     max_chunks: 5000,
     stop_timeout_ms: 2000
@@ -389,8 +384,8 @@ export function routedOps(boards: BoardOps, virtual: BoardOps): BoardOps {
     logs: async (serialNumber, after, waitMs, limit) =>
       pick(serialNumber).logs(serialNumber, after, waitMs, limit),
     write: async (serialNumber, data) => pick(serialNumber).write(serialNumber, data),
-    deploy: async (serialNumber, files, dryRun, setup) =>
-      pick(serialNumber).deploy(serialNumber, files, dryRun, setup),
+    deploy: async (serialNumber, files, sdk, dryRun, setup) =>
+      pick(serialNumber).deploy(serialNumber, files, sdk, dryRun, setup),
     probe: async (serialNumber) => pick(serialNumber).probe(serialNumber),
     release: async (serialNumber) => pick(serialNumber).release(serialNumber),
     reconnect: async (serialNumber) => pick(serialNumber).reconnect(serialNumber),

@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { DEVICE_SDK, isSdkPath, loadSdk, type Sdk } from "../../../board/sdk.ts"
+import { DEVICE_SDK, isSdkPath, loadDeviceSdk, loadSdk, type Sdk } from "../../../board/sdk.ts"
 
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex")
 
@@ -91,5 +91,25 @@ describe("loadSdk", () => {
     await expect(loadSdk(sdk, config)).rejects.toThrow(
       "the Qualithm Device SDK 9.9.9 (/lib/umqtt/b.mpy) download doesn't match its pinned checksum"
     )
+  })
+})
+
+describe("loadDeviceSdk", () => {
+  it("names the release beside its files, so a deploy can say which one it installed", async () => {
+    const a = new TextEncoder().encode("a")
+    const sdk: Sdk = {
+      version: "9.9.9",
+      files: [
+        { path: "/lib/qualithm_device/a.mpy", url: "https://example.test/a", sha256: sha256(a) }
+      ]
+    }
+    const config = {
+      cache_dir: await mkdtemp(join(tmpdir(), "sdk-")),
+      fetch: async () => Promise.resolve(new Response(a))
+    }
+    expect(await loadDeviceSdk(sdk, config)).toEqual({
+      version: "9.9.9",
+      files: [{ path: "/lib/qualithm_device/a.mpy", bytes: a }]
+    })
   })
 })

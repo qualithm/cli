@@ -122,3 +122,24 @@ export async function loadSdk(
     }))
   )
 }
+
+/** A device SDK release, its files loaded and checked, as a deploy sends it to the core. */
+export type LoadedSdk = {
+  version: string
+  files: ProjectFile[]
+}
+
+/**
+ * Loads the device SDK release a deploy installs, from the cache or by downloading it.
+ *
+ * @param sdk - the release; the one this CLI pins by default
+ * @param config - cache folder and download
+ * @returns the release and its files
+ * @throws {CliError} when a download fails or doesn't match
+ */
+export async function loadDeviceSdk(
+  sdk: Sdk = DEVICE_SDK,
+  config: FirmwareConfig = defaultFirmwareConfig
+): Promise<LoadedSdk> {
+  return { version: sdk.version, files: await loadSdk(sdk, config) }
+}

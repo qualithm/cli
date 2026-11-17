@@ -85,7 +85,7 @@ export class Core {
         }))
         const { setup } = request
         return this.#serial(async () =>
-          ops.deploy(request.serialNumber, files, request.dryRun === true, setup)
+          ops.deploy(request.serialNumber, files, request.sdk, request.dryRun === true, setup)
         )
       }
       case "probe":

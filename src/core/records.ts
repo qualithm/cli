@@ -4,7 +4,6 @@ import { dirname, join } from "node:path"
 
 import { sameSerial } from "../board/discover.ts"
 import type { Board } from "../board/pico.ts"
-import { DEVICE_SDK } from "../board/sdk.ts"
 import type { BoardOps } from "./boards.ts"
 import { isVirtual } from "./virtual.ts"
 
@@ -125,14 +124,9 @@ export function fileRecords(path: string = boardRecordsPath()): BoardRecords {
  *
  * @param ops - the board operations
  * @param records - where the records live
- * @param sdk - the device SDK release a deploy installs
  * @returns the operations, recording
  */
-export function recordedOps(
-  ops: BoardOps,
-  records: BoardRecords,
-  sdk: string = DEVICE_SDK.version
-): BoardOps {
+export function recordedOps(ops: BoardOps, records: BoardRecords): BoardOps {
   return {
     ...ops,
     list: async () => {
@@ -151,8 +145,8 @@ export function recordedOps(
       }
       return result
     },
-    deploy: async (serialNumber, files, dryRun, setup) => {
-      const result = await ops.deploy(serialNumber, files, dryRun, setup)
+    deploy: async (serialNumber, files, sdk, dryRun, setup) => {
+      const result = await ops.deploy(serialNumber, files, sdk, dryRun, setup)
       const deployed = result.board.serialNumber
       if (!dryRun && deployed !== undefined && !isVirtual(deployed)) {
         records.deployed(deployed, sdk)
