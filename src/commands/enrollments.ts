@@ -54,7 +54,7 @@ export const enrollmentCommands: readonly Command[] = [
     human: (data: unknown): string => {
       const { enrollment, code } = data as EnrollmentCode
       return (
-        `enrollment ${enrollment.id} created for scope ${enrollment.scopeId}\n` +
+        `claim code ${enrollment.id} created for scope ${enrollment.scopeId}\n` +
         `claim code (shown once): ${code}\n`
       )
     }
@@ -65,21 +65,21 @@ export const enrollmentCommands: readonly Command[] = [
     tool: revokeEnrollment,
     options: {},
     toInput: ({ positionals }) => ({
-      enrollmentId: requirePositional(positionals, 0, "enrollment id")
+      enrollmentId: requirePositional(positionals, 0, "claim code id")
     }),
-    human: (_data, input) => `enrollment ${String(input.enrollmentId)} revoked\n`
+    human: (_data, input) => `claim code ${String(input.enrollmentId)} revoked\n`
   },
   {
     path: ["enrollment", "wait"],
     tool: waitForEnrollment,
     options: { timeout: { type: "string" } },
     toInput: ({ values, positionals }) => ({
-      enrollmentId: requirePositional(positionals, 0, "enrollment id"),
+      enrollmentId: requirePositional(positionals, 0, "claim code id"),
       timeoutSeconds: intOption(values, "timeout")
     }),
     human: (data: unknown): string => {
       const { enrollment, device } = data as { enrollment: Enrollment; device: Device }
-      return `device ${device.id} (${device.name}) claimed enrollment ${enrollment.id}\n`
+      return `device ${device.id} (${device.name}) used claim code ${enrollment.id}\n`
     }
   }
 ]
