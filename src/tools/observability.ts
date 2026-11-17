@@ -81,14 +81,14 @@ async function readEvents(
   }
 }
 
-/** Reads bucketed telemetry for one device metric. */
+/** Reads bucketed readings for one device metric. */
 export const getTelemetry = defineTool({
   name: "get_telemetry",
-  description: "Read bucketed telemetry points for a device metric over a time range.",
+  description: "Read bucketed readings for a device metric over a time range.",
   mutating: false,
   operations: ["listTelemetry"],
   input: {
-    deviceId: z.string().min(1).describe("id of the device to read telemetry for"),
+    deviceId: z.string().min(1).describe("id of the device the readings come from"),
     metric: z.string().min(1).describe("metric name to read"),
     from: z.iso.datetime({ offset: true }).describe("range start, RFC 3339, inclusive"),
     to: z.iso.datetime({ offset: true }).describe("range end, RFC 3339, exclusive"),

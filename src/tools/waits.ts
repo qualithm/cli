@@ -90,7 +90,7 @@ async function enrollment(session: Session, enrollmentId: string): Promise<Enrol
     }
     cursor = data.nextCursor ?? undefined
   } while (cursor !== undefined)
-  throw new CliError(`enrollment ${enrollmentId} not found`, "not_found")
+  throw new CliError(`claim code ${enrollmentId} not found`, "not_found")
 }
 
 /** Waits until a device is online, then returns its state. */
@@ -119,28 +119,28 @@ export const waitForDevice = defineTool({
   }
 })
 
-/** Waits until a device uses an enrollment's claim code, then returns the enrollment and device. */
+/** Waits until a device uses a claim code, then returns the claim code and device. */
 export const waitForEnrollment = defineTool({
   name: "wait_for_enrollment",
   description:
-    "Wait until a device uses an enrollment's claim code and return the enrollment and the device. Fails with code timeout if no device uses it in time, and code conflict if the code is revoked or expires.",
+    "Wait until a device uses a claim code and return the claim code and the device. Fails with code timeout if no device uses it in time, and code conflict if the code is revoked or expires.",
   mutating: false,
   operations: ["getDevice", "listEnrollments"],
   input: {
-    enrollmentId: z.string().min(1).describe("id of the enrollment whose claim code to wait on"),
+    enrollmentId: z.string().min(1).describe("id of the claim code to wait on"),
     ...timeoutInput
   },
   run: async (session, input) => {
     const claimed = await until(
       input.timeoutSeconds ?? 300,
-      `no device used the claim code of enrollment ${input.enrollmentId}: check the device is powered and has the code, then wait again`,
+      `no device used claim code ${input.enrollmentId}: check the device is powered and has the code, then wait again`,
       async () => {
         const found = await enrollment(session, input.enrollmentId)
         if (found.status === "revoked") {
-          throw new CliError("claim code revoked: create an enrollment for a new code", "conflict")
+          throw new CliError("claim code revoked: create a new claim code", "conflict")
         }
         if (found.status === "pending" && found.expiresAt.getTime() <= Date.now()) {
-          throw new CliError("claim code expired: create an enrollment for a new code", "conflict")
+          throw new CliError("claim code expired: create a new claim code", "conflict")
         }
         return found.status === "claimed" && found.claimedDeviceId !== null ? found : undefined
       }

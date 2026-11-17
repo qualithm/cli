@@ -176,7 +176,7 @@ describe("wait_for_enrollment", () => {
       { [ENROLLMENTS]: enrollments([item]) }
     )
     expect(result).toMatchObject({ ok: false, code: "conflict" })
-    expect(result.message).toBe(`claim code ${word}: create an enrollment for a new code`)
+    expect(result.message).toBe(`claim code ${word}: create a new claim code`)
   })
 
   it("fails with code timeout when no device uses the code", async () => {
@@ -205,7 +205,7 @@ describe("wait commands", () => {
   it("prints the device that claimed an enrollment", async () => {
     const c = capture({}, { ...DEFAULT_ROUTES, [ENROLLMENTS]: enrollments([CLAIMED]) })
     expect(await run(["enrollment", "wait", "enr_1"], c.io)).toBe(0)
-    expect(c.out()).toBe(`device dev_1 (${DEVICE.name}) claimed enrollment enr_1\n`)
+    expect(c.out()).toBe(`device dev_1 (${DEVICE.name}) used claim code enr_1\n`)
   })
 
   it("needs an id", async () => {
