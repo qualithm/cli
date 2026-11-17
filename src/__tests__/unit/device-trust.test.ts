@@ -113,7 +113,7 @@ describe("enrollment", () => {
     const args = ["enrollment", "new", "--scope", "spc_1", "--label", "lab"]
     expect(await run([...args, "--expires-minutes", "60"], c.io)).toBe(0)
     expect(c.out()).toBe(
-      "enrollment enr_1 created for scope spc_1\nclaim code (shown once): QM-1234\n"
+      "claim code enr_1 created for scope spc_1\nclaim code (shown once): QM-1234\n"
     )
     expect(c.requests.at(-1)?.body).toEqual({
       scopeId: "spc_1",
@@ -137,7 +137,7 @@ describe("enrollment", () => {
   it("revokes by id, and plans it on a dry run", async () => {
     const c = capture()
     expect(await run(["enrollment", "delete", "enr_1"], c.io)).toBe(0)
-    expect(c.out()).toBe("enrollment enr_1 revoked\n")
+    expect(c.out()).toBe("claim code enr_1 revoked\n")
     const dry = capture()
     expect(await run(["enrollment", "revoke", "enr_1", "--dry-run"], dry.io)).toBe(0)
     expect(dry.out()).toBe("dry-run: would DELETE /v1/teams/team_1/enrollments/enr_1\n")
