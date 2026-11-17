@@ -36,10 +36,19 @@ landed.
 
 ## Names
 
-Each object has one name on every surface. Use these, and add a new object here when it ships.
+Each object has one name on every surface. Use these, and add a new object here when it ships. Text
+uses these names even where an identifier says otherwise: an API path, an MQTT topic or a tool name
+keeps its word until the API next changes it.
 
 - **Scope** groups devices. Never "space".
 - **Device** is a connected device only. What a session signs in from is a **browser**.
+- **Capability** is what a device declares it can report or do: a **reading**, such as a
+  temperature, or a **control**, such as a switch, a level or a choice. Never "telemetry".
+- **Command** is one request to set a control, sent to the device.
+- **Claim code** is the single-use code a device claims its credential with. Never "enrollment".
+- **Credential** is what a device connects with: a token or a certificate. A device's token is a
+  credential, never an **API token**, which a member or a script calls the API with.
+- **Zone** is where a device connects and its data is kept.
 - **Automation** watches for something happening and does something about it. Never "trigger" or
   "action" as objects.
 - **Dashboard** shows devices' readings and controls.
