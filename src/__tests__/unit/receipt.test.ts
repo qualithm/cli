@@ -13,14 +13,14 @@ describe("boardDecisions", () => {
         label: "MicroPython",
         value: "1.29.0",
         source: "cli",
-        docsUrl: "https://docs.qualithm.com/devices#add-a-device"
+        docsUrl: "https://docs.qualithm.com/micropython#the-micropython-release"
       },
       {
         key: "sdk",
         label: "Qualithm Device SDK",
         value: DEVICE_SDK.version,
         source: "cli",
-        docsUrl: "https://docs.qualithm.com/devices#add-a-device"
+        docsUrl: "https://docs.qualithm.com/micropython#the-device-sdk"
       },
       {
         key: "scope",
@@ -34,7 +34,7 @@ describe("boardDecisions", () => {
         label: "Wi-Fi network",
         value: "Home",
         source: "computer",
-        docsUrl: "https://docs.qualithm.com/devices#add-a-device"
+        docsUrl: "https://docs.qualithm.com/micropython#the-wi-fi-network"
       }
     ])
   })

@@ -45,7 +45,7 @@ export function boardDecisions(choices: BoardChoices): Decision[] {
       label: "MicroPython",
       value: choices.firmware,
       source: "cli",
-      docsUrl: `${DOCS}/devices#add-a-device`
+      docsUrl: `${DOCS}/micropython#the-micropython-release`
     })
   }
   if (choices.sdk === true) {
@@ -54,7 +54,7 @@ export function boardDecisions(choices: BoardChoices): Decision[] {
       label: "Qualithm Device SDK",
       value: DEVICE_SDK.version,
       source: "cli",
-      docsUrl: `${DOCS}/devices#add-a-device`
+      docsUrl: `${DOCS}/micropython#the-device-sdk`
     })
   }
   if (choices.scopeId !== undefined) {
@@ -72,7 +72,7 @@ export function boardDecisions(choices: BoardChoices): Decision[] {
       label: "Wi-Fi network",
       value: choices.wifiNetwork,
       source: "computer",
-      docsUrl: `${DOCS}/devices#add-a-device`
+      docsUrl: `${DOCS}/micropython#the-wi-fi-network`
     })
   }
   return decisions.slice(0, MAX_DECISIONS)
