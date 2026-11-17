@@ -205,7 +205,7 @@ describe("deploy", () => {
     expect(c.out()).toBe(
       "write  /main.py\ndeployed to abc on /dev/cu.pico: 1 written, 0 removed, 0 unchanged; restarted\n" +
         "\nDecided for this deploy\n" +
-        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/devices#add-a-device\n`
+        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/micropython#the-device-sdk\n`
     )
     ops.deploy = async () =>
       Promise.resolve({
@@ -398,7 +398,7 @@ describe("qualithm board", () => {
     expect(flash.out()).toBe(
       "flashed MicroPython 1.29.0 onto abc on /dev/cu.pico\n" +
         "\nDecided for this flash\n" +
-        "MicroPython  1.29.0  https://docs.qualithm.com/devices#add-a-device\n"
+        "MicroPython  1.29.0  https://docs.qualithm.com/micropython#the-micropython-release\n"
     )
     const reset = capture({ client: clientOf(ops) })
     expect(await run(["board", "reset"], reset)).toBe(0)
@@ -659,7 +659,7 @@ describe("virtual deploy", () => {
         `follow its output: qualithm board logs --serial ${serial} -f`,
         "",
         "Decided for this deploy",
-        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/devices#add-a-device`,
+        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/micropython#the-device-sdk`,
         "Scope                spc_1  https://docs.qualithm.com/scopes#add-a-device-to-a-scope",
         ""
       ].join("\n")
