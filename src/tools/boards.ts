@@ -4,11 +4,12 @@ import { z } from "zod"
 
 import { MICROPYTHON_PICO_2_W } from "../board/firmware.ts"
 import { type FlashResult, pickBoard } from "../board/flash.ts"
-import type { Board } from "../board/pico.ts"
+import { DEVICE_SDK } from "../board/sdk.ts"
 import { collectProject, type Setup } from "../board/sync.ts"
 import { type DeployResult, pickRunning, type ProbeResult } from "../core/boards.ts"
 import type { CoreClient } from "../core/client.ts"
 import { MAX_LIMIT, MAX_WAIT_MS } from "../core/protocol.ts"
+import type { ListedBoard } from "../core/records.ts"
 import type { LogPage } from "../core/taps.ts"
 import { virtualSerial } from "../core/virtual.ts"
 import { CliError } from "../envelope.ts"
@@ -65,8 +66,26 @@ export type ConsoleReply = {
   next: number
 }
 
-async function list(client: CoreClient): Promise<Board[]> {
-  return (await client.send({ verb: "list" })) as Board[]
+async function list(client: CoreClient): Promise<ListedBoard[]> {
+  return (await client.send({ verb: "list" })) as ListedBoard[]
+}
+
+/** A board as `list_boards` reports it. */
+export type ReportedBoard = ListedBoard & {
+  /** Whether the SDK release on record is the one a deploy installs now; absent with no record. */
+  sdkCurrent?: boolean
+}
+
+/**
+ * Marks a listed board with whether its SDK on record is the release this `qualithm` deploys.
+ *
+ * @param board - the board, as the core lists it
+ * @returns the board, marked when it has a record
+ */
+export function reportBoard(board: ListedBoard): ReportedBoard {
+  return board.sdk === undefined
+    ? board
+    : { ...board, sdkCurrent: board.sdk === DEVICE_SDK.version }
 }
 
 async function logs(
@@ -151,12 +170,12 @@ export function boardTools(client: CoreClient, options: BoardToolOptions = {}): 
     defineTool({
       name: "list_boards",
       description:
-        "List the boards plugged into this computer: Pico 2 Ws running MicroPython or waiting in BOOTSEL to be flashed, and ESP32-S3, C3 and C6 boards.",
+        "List the boards plugged into this computer: Pico 2 Ws running MicroPython or waiting in BOOTSEL to be flashed, and ESP32-S3, C3 and C6 boards. A board this computer deployed to carries `sdk`, the Qualithm Device SDK release that deploy left on it, and `sdkCurrent`, false when deploying its project again would install a different release.",
       mutating: false,
       operations: [],
       local: true,
       input: {},
-      run: async () => list(client)
+      run: async () => (await list(client)).map(reportBoard)
     }),
     defineTool({
       name: "flash_board",

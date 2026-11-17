@@ -383,6 +383,36 @@ describe("qualithm board", () => {
     expect(listed.data[0]).toMatchObject({ serialNumber: "abc" })
   })
 
+  it("shows the SDK on record for each board and which a deploy would update", async () => {
+    const ops = fakeOps()
+    ops.list = async () =>
+      Promise.resolve([
+        { state: "micropython", port: "/dev/cu.pico", serialNumber: "abc", sdk: "0.8.0" },
+        {
+          state: "micropython",
+          port: "/dev/cu.c3",
+          serialNumber: "def",
+          sdk: DEVICE_SDK.version
+        },
+        { state: "micropython", port: "/dev/cu.new", serialNumber: "ghi" }
+      ])
+    const c = capture({ client: clientOf(ops) })
+    expect(await run(["board", "list"], c)).toBe(0)
+    expect(c.out()).toMatch(/STATE\s+SERIAL\s+WHERE\s+SDK/)
+    expect(c.out()).toMatch(/abc\s+\/dev\/cu\.pico\s+0\.8\.0/)
+    expect(c.out()).toMatch(/ghi\s+\/dev\/cu\.new\s+-/)
+    expect(c.out()).toContain(
+      `abc holds Qualithm Device SDK 0.8.0: deploy its project again to install ${DEVICE_SDK.version}\n`
+    )
+    expect(c.out()).not.toContain("def holds")
+    const j = capture({ client: clientOf(ops) })
+    expect(await run(["board", "list", "--json"], j)).toBe(0)
+    const listed = JSON.parse(j.out()) as { data: Record<string, unknown>[] }
+    expect(listed.data[0]).toMatchObject({ sdk: "0.8.0", sdkCurrent: false })
+    expect(listed.data[1]).toMatchObject({ sdk: DEVICE_SDK.version, sdkCurrent: true })
+    expect(listed.data[2]).not.toHaveProperty("sdkCurrent")
+  })
+
   it("says when no board is plugged in", async () => {
     const ops = fakeOps()
     ops.list = async () => Promise.resolve([])
