@@ -16,27 +16,36 @@ import { coreLogPath, corePath } from "./socket.ts"
 const STALE = "run `qualithm core stop`, then try again"
 
 /**
+ * The running core is from another qualithm version, so it refuses every request until it's
+ * stopped. Its code is `conflict`, a busy board's code too; the class tells the two apart.
+ */
+export class StaleCoreError extends CliError {
+  constructor() {
+    super(`the running core is from another qualithm version: ${STALE}`, "conflict")
+  }
+}
+
+/**
  * Sends one request to the core and returns its reply's data.
  *
  * @param path - the socket path or Windows pipe name
  * @param request - the request, without `api`
  * @returns the reply's data
- * @throws {CliError} when no core answers, the core refuses this API version, or the verb fails
+ * @throws {StaleCoreError} when the core is from another qualithm version
+ * @throws {CliError} when no core answers or the verb fails
  */
 export async function sendCore(path: string, request: Unversioned<CoreRequest>): Promise<unknown> {
   const reply = await exchange(path, `${JSON.stringify({ api: API_VERSION, ...request })}\n`)
-  const stale = new CliError(
-    `the running core is from another qualithm version: ${STALE}`,
-    "conflict"
-  )
   if (!reply.ok) {
     const { code, message } = reply.error
     // A core that predates a verb doesn't know it: it's from an older qualithm.
     const unknownVerb = code === "usage" && message.startsWith("bad request at verb:")
-    throw code === "api_mismatch" || unknownVerb ? stale : new CliError(message, code)
+    throw code === "api_mismatch" || unknownVerb
+      ? new StaleCoreError()
+      : new CliError(message, code)
   }
   if (reply.api !== API_VERSION && request.verb !== "shutdown") {
-    throw stale
+    throw new StaleCoreError()
   }
   return reply.data
 }
@@ -122,7 +131,8 @@ export type EnsureConfig = {
  * @param path - the socket path or Windows pipe name
  * @param config - how to start and wait
  * @returns the core's `hello`
- * @throws {CliError} when the core doesn't come up in time, or is from another version
+ * @throws {StaleCoreError} when the core is from another qualithm version
+ * @throws {CliError} when the core doesn't come up in time
  */
 export async function ensureCore(path: string, config: EnsureConfig): Promise<Hello> {
   if (!(await coreAnswers(path))) {
