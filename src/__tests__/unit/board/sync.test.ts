@@ -445,14 +445,14 @@ describe("syncProject", () => {
     const board = new FakeBoard()
     const files = [file("/main.py", "a")]
     // The fake board prints nothing, so every file reads as missing and is written.
-    const dry = await syncProject(board, files, true, fast)
+    const dry = await syncProject(board, files, DEVICE_SDK.version, { dryRun: true, config: fast })
     expect(dry.written).toEqual(["/main.py"])
     expect(board.written.at(-1)).toBe("\x02")
-    const real = await syncProject(board, files, false, fast)
+    const real = await syncProject(board, files, DEVICE_SDK.version, { config: fast })
     expect(real.written).toEqual(["/main.py"])
     expect(board.written.at(-1)).toBe("\x04")
     const setup = { provisioningUrl: "https://a.example", claimCode: "qmc_a.b" }
-    await syncProject(board, files, false, fast, setup)
+    await syncProject(board, files, DEVICE_SDK.version, { config: fast, setup })
     expect(board.ran.some((code) => code.includes("qmc_a.b"))).toBe(true)
   })
 })

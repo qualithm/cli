@@ -2,7 +2,7 @@ import { parseArgs } from "node:util"
 
 import type { FlashResult } from "../board/flash.ts"
 import type { Board } from "../board/pico.ts"
-import { DEVICE_SDK } from "../board/sdk.ts"
+import { DEVICE_SDK, type LoadedSdk } from "../board/sdk.ts"
 import type { DeployResult, Released } from "../core/boards.ts"
 import { type CoreClient, socketClient } from "../core/client.ts"
 import { MAX_LIMIT } from "../core/protocol.ts"
@@ -37,6 +37,8 @@ export type BoardIo = {
   ask?: Ask
   /** Where Wi-Fi networks and passphrases come from; the OS by default. */
   wifiLookup?: WifiLookup
+  /** Loads the device SDK a deploy installs; the release this CLI pins by default. */
+  sdk?: () => Promise<LoadedSdk>
 }
 
 /** The platform flags a deploy takes. */
@@ -410,7 +412,8 @@ async function runTool(
   const lookup = io.wifiLookup ?? {}
   const tools = boardTools(client, {
     lookup,
-    ...(ask === undefined ? {} : { wifi: terminalWifi(ask, lookup) })
+    ...(ask === undefined ? {} : { wifi: terminalWifi(ask, lookup) }),
+    ...(io.sdk === undefined ? {} : { sdk: io.sdk })
   })
   const tool = tools.find((t) => t.name === name)
   if (tool === undefined) {

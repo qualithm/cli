@@ -70,7 +70,6 @@ async function setup(overrides: Partial<VirtualDeps> = {}): Promise<{
   const ops = virtualOps({
     root: () => root,
     runtime: async () => Promise.resolve("/cache/micropython"),
-    sdk: async () => Promise.resolve(SDK),
     launch: (runtime, cwd) => {
       const proc = fakeProcess()
       launched.push({ runtime, cwd, proc })
@@ -112,10 +111,16 @@ describe("virtual device names", () => {
 describe("virtual device operations", () => {
   it("write the project, the SDK and the setup, then start main.py", async () => {
     const { root, launched, ops } = await setup()
-    const result = await ops.deploy("virtual:demo", [file("/main.py", "print(1)")], false, {
-      ...SETUP,
-      wifi: { ssid: "Home", passphrase: "secret" }
-    })
+    const result = await ops.deploy(
+      "virtual:demo",
+      [file("/main.py", "print(1)"), ...SDK],
+      "9.9.9",
+      false,
+      {
+        ...SETUP,
+        wifi: { ssid: "Home", passphrase: "secret" }
+      }
+    )
     const dir = join(root, "demo")
     expect(result).toEqual({
       board: { port: dir, serialNumber: "virtual:demo" },
@@ -133,7 +138,13 @@ describe("virtual device operations", () => {
 
   it("write nothing and start nothing on a dry run", async () => {
     const { root, launched, ops } = await setup()
-    const result = await ops.deploy("virtual:demo", [file("/main.py", "x")], true, SETUP)
+    const result = await ops.deploy(
+      "virtual:demo",
+      [file("/main.py", "x"), ...SDK],
+      "9.9.9",
+      true,
+      SETUP
+    )
     expect(result.written).toEqual(["/main.py", "/lib/qualithm_device/__init__.mpy"])
     expect(await exists(join(root, "demo"))).toBe(false)
     expect(launched).toEqual([])
@@ -141,10 +152,16 @@ describe("virtual device operations", () => {
 
   it("redeploy only what changed, remove what the project dropped, and restart", async () => {
     const { root, launched, ops } = await setup()
-    await ops.deploy("virtual:demo", [file("/main.py", "a"), file("/old.py", "o")], false, SETUP)
+    await ops.deploy(
+      "virtual:demo",
+      [file("/main.py", "a"), file("/old.py", "o"), ...SDK],
+      "9.9.9",
+      false,
+      SETUP
+    )
     await writeFile(join(root, "demo", "qualithm-credential.json"), "{}")
 
-    const again = await ops.deploy("virtual:demo", [file("/main.py", "b")], false)
+    const again = await ops.deploy("virtual:demo", [file("/main.py", "b"), ...SDK], "9.9.9", false)
 
     expect(again).toMatchObject({ written: ["/main.py"], removed: ["/old.py"], unchanged: 1 })
     expect(await exists(join(root, "demo", "old.py"))).toBe(false)
@@ -155,10 +172,10 @@ describe("virtual device operations", () => {
 
   it("treat an unreadable record of the last deploy as empty", async () => {
     const { root, ops } = await setup()
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     for (const record of ["not json", '{"not": "a list"}']) {
       await writeFile(join(root, "demo", ".qualithm-deployed.json"), record)
-      const again = await ops.deploy("virtual:demo", [file("/main.py", "a")], true)
+      const again = await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", true)
       expect(again.removed).toEqual([])
     }
   })
@@ -170,7 +187,7 @@ describe("virtual device operations", () => {
       credential: false,
       claimCode: false
     })
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     expect(await ops.probe("virtual:demo")).toMatchObject({ credential: false, claimCode: true })
     await writeFile(join(root, "demo", "qualithm-credential.json"), "{}")
     await writeFile(join(root, "demo", "qualithm-setup.json"), "not json")
@@ -179,7 +196,7 @@ describe("virtual device operations", () => {
 
   it("buffer what the device prints, wait for more, and mark when it stops", async () => {
     const { launched, ops } = await setup()
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     const proc = launched[0]?.proc
     proc?.print("hello\n")
 
@@ -197,7 +214,7 @@ describe("virtual device operations", () => {
 
   it("keep only the newest output and page it by limit", async () => {
     const { launched, ops } = await setup()
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     for (const text of ["1", "2", "3", "4"]) {
       launched[0]?.proc.print(text)
     }
@@ -211,7 +228,7 @@ describe("virtual device operations", () => {
     await expect(ops.reset("virtual:demo")).rejects.toMatchObject({ code: "not_found" })
     await expect(ops.logs("virtual:demo", 0, 0, 10)).rejects.toMatchObject({ code: "not_found" })
 
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     const board = await ops.reset("virtual:demo")
     expect(board.serialNumber).toBe("virtual:demo")
     expect(launched).toHaveLength(2)
@@ -238,8 +255,8 @@ describe("virtual device operations", () => {
 
   it("stop every device on close", async () => {
     const { launched, ops } = await setup()
-    await ops.deploy("virtual:a", [file("/main.py", "a")], false, SETUP)
-    await ops.deploy("virtual:b", [file("/main.py", "b")], false, SETUP)
+    await ops.deploy("virtual:a", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
+    await ops.deploy("virtual:b", [file("/main.py", "b"), ...SDK], "9.9.9", false, SETUP)
     await ops.close()
     expect(launched.every((l) => l.proc.killed)).toBe(true)
   })
@@ -250,7 +267,7 @@ describe("virtual device operations", () => {
       stubborn.killed = true
     }
     const { ops } = await setup({ launch: () => stubborn })
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false, SETUP)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false, SETUP)
     await ops.close()
     expect(stubborn.killed).toBe(true)
   })
@@ -268,7 +285,7 @@ describe("routed operations", () => {
     await ops.run("virtual:demo", "x")
     await ops.write("abc", "x")
     await ops.logs("virtual:demo", 0, 0, 1)
-    await ops.deploy("virtual:demo", [file("/main.py", "a")], false)
+    await ops.deploy("virtual:demo", [file("/main.py", "a"), ...SDK], "9.9.9", false)
     await ops.release("abc")
     await ops.reconnect("virtual:demo")
     expect(await ops.list()).toEqual(await boards.list())

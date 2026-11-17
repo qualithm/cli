@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { Board } from "../../../board/pico.ts"
 import { defaultRawReplConfig } from "../../../board/raw-repl.ts"
+import { DEVICE_SDK } from "../../../board/sdk.ts"
 import { PROBE } from "../../../board/sync.ts"
 import { boardOps, pickRunning } from "../../../core/boards.ts"
 import { CliError } from "../../../envelope.ts"
@@ -58,8 +59,7 @@ describe("boardOps", () => {
     read_wait_ms: 1,
     boot_quiet_ms: 5,
     boot_timeout_ms: 1000,
-    max_chunks: 10,
-    sdk: async () => Promise.resolve([])
+    max_chunks: 10
   }
 
   /** Lists `lists` in turn, repeating the last; the board is plugged in by default. */
@@ -233,7 +233,7 @@ describe("boardOps", () => {
     await expect(o.reset("abc")).rejects.toEqual(refusal)
     await expect(o.run(undefined, "print(42)")).rejects.toEqual(refusal)
     await expect(o.probe(undefined)).rejects.toEqual(refusal)
-    await expect(o.deploy(undefined, [], false)).rejects.toEqual(refusal)
+    await expect(o.deploy(undefined, [], DEVICE_SDK.version, false)).rejects.toEqual(refusal)
     await expect(o.logs(undefined, 0, 0, 10)).rejects.toEqual(refusal)
     await expect(o.write(undefined, "x")).rejects.toEqual(refusal)
     expect(await o.reconnect("ABC")).toEqual({ serialNumber: "ABC" })
@@ -255,6 +255,7 @@ describe("boardOps", () => {
     const result = await ops(board).deploy(
       undefined,
       [{ path: "/main.py", bytes: new Uint8Array([0x31]) }],
+      DEVICE_SDK.version,
       false
     )
     expect(result).toEqual({
@@ -266,12 +267,13 @@ describe("boardOps", () => {
     expect(board.closed).toBe(true)
   })
 
-  it("puts the device SDK beside the project", async () => {
+  it("writes the device SDK files the deploy carries, beside the project", async () => {
     const board = new FakeBoard()
-    const sdk = [{ path: "/lib/qualithm_device/pico.mpy", bytes: new Uint8Array([0x4d]) }]
-    const result = await ops(board, [[waiting]], { sdk: async () => Promise.resolve(sdk) }).deploy(
+    const sdk = { path: "/lib/qualithm_device/pico.mpy", bytes: new Uint8Array([0x4d]) }
+    const result = await ops(board, [[waiting]]).deploy(
       undefined,
-      [{ path: "/main.py", bytes: new Uint8Array() }],
+      [{ path: "/main.py", bytes: new Uint8Array() }, sdk],
+      DEVICE_SDK.version,
       true
     )
     expect(result.written).toEqual(["/main.py", "/lib/qualithm_device/pico.mpy"])
@@ -286,7 +288,12 @@ describe("boardOps", () => {
         return Promise.resolve({ port: "/dev/cu.pico", version: "1.29.0", machine: "Pico" })
       }
     })
-    const result = await o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+    const result = await o.deploy(
+      undefined,
+      [{ path: "/main.py", bytes: new Uint8Array() }],
+      DEVICE_SDK.version,
+      false
+    )
     expect(result).toMatchObject({ flashed: "1.29.0", written: ["/main.py"] })
     expect(flashed).toEqual(["-"])
   })
@@ -316,7 +323,12 @@ describe("boardOps", () => {
           })
       }
     )
-    const result = await o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+    const result = await o.deploy(
+      undefined,
+      [{ path: "/main.py", bytes: new Uint8Array() }],
+      DEVICE_SDK.version,
+      false
+    )
     expect(result).toMatchObject({ board: { port: "/dev/cu.pico" }, flashed: "1.29.0" })
     expect(opened).toEqual(["/dev/cu.pico"])
   })
@@ -326,6 +338,7 @@ describe("boardOps", () => {
     const result = await ops(board, [[waiting]]).deploy(
       undefined,
       [{ path: "/main.py", bytes: new Uint8Array() }],
+      DEVICE_SDK.version,
       true
     )
     expect(result).toEqual({
@@ -352,6 +365,7 @@ describe("boardOps", () => {
     const result = await ops(board, [[esp]]).deploy(
       "54fc019337",
       [{ path: "/main.py", bytes: new Uint8Array() }],
+      DEVICE_SDK.version,
       false
     )
     expect(result).toMatchObject({ board: { port: "/dev/cu.c3" }, written: ["/main.py"] })
@@ -374,7 +388,12 @@ describe("boardOps", () => {
         board.answers = false
       }
       await expect(
-        o.deploy(undefined, [{ path: "/main.py", bytes: new Uint8Array() }], false)
+        o.deploy(
+          undefined,
+          [{ path: "/main.py", bytes: new Uint8Array() }],
+          DEVICE_SDK.version,
+          false
+        )
       ).resolves.toMatchObject({ flashed: "1.29.0" })
       expect(flashed).toEqual(["-"])
     }
@@ -386,6 +405,7 @@ describe("boardOps", () => {
       await ops(board, [[esp]]).deploy(
         undefined,
         [{ path: "/main.py", bytes: new Uint8Array() }],
+        DEVICE_SDK.version,
         true
       )
     ).toEqual({

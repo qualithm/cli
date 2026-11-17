@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { ErrorCode } from "../envelope.ts"
 
 /** The socket API's version. A change to a request or reply shape bumps it. */
-export const API_VERSION = 1
+export const API_VERSION = 2
 
 /** The longest a `logs` request may wait for output. */
 export const MAX_WAIT_MS = 30000
@@ -34,6 +34,8 @@ const requestSchema = z.discriminatedUnion("verb", [
     verb: z.literal("deploy"),
     serialNumber,
     files: z.array(z.object({ path: z.string().regex(/^\/./), data: z.string() })).min(1),
+    /** The device SDK release among `files`, which the calling CLI pins. */
+    sdk: z.string().min(1),
     dryRun: z.boolean().optional(),
     setup: z
       .object({
