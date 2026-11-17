@@ -4,7 +4,7 @@ import { DEVICE_SDK, type LoadedSdk } from "../../board/sdk.ts"
 import { type CliIo, run } from "../../cli.ts"
 import { BOARD_USAGE, runBoard } from "../../commands/boards.ts"
 import type { BoardOps } from "../../core/boards.ts"
-import type { CoreClient } from "../../core/client.ts"
+import { type CoreClient, StaleCoreError } from "../../core/client.ts"
 import { Core } from "../../core/core.ts"
 import { API_VERSION } from "../../core/protocol.ts"
 import type { LogPage } from "../../core/taps.ts"
@@ -29,6 +29,21 @@ function clientOf(ops: BoardOps): CoreClient & { sent: string[] } {
         throw new CliError(reply.error.message, reply.error.code as ErrorCode)
       }
       return reply.data
+    }
+  }
+}
+
+/** `client` until `served` requests in, when its core turns out to be from another version. */
+function staleAfter(served: number, client: CoreClient): CoreClient & { sent: () => number } {
+  let sent = 0
+  return {
+    sent: () => sent,
+    send: async (request) => {
+      sent++
+      if (sent > served) {
+        throw new StaleCoreError()
+      }
+      return client.send(request)
     }
   }
 }
@@ -563,6 +578,50 @@ describe("qualithm board", () => {
     expect(c.err()).toBe("qualithm: boom\n")
   })
 
+  it("rides out a board restarting, being flashed or briefly unplugged", async () => {
+    const ops = consoleOps([["before\r\n"], ["after\r\n"]])
+    const { logs } = ops
+    const refusals = [
+      new CliError("no board found", "not_found"),
+      new CliError("the board is busy with a flash, reset or run: try again", "conflict"),
+      new CliError("the board on /dev/cu.pico disconnected", "unavailable")
+    ]
+    const controller = new AbortController()
+    let calls = 0
+    ops.logs = async (...args) => {
+      calls++
+      const refusal = calls === 1 ? undefined : refusals.shift()
+      if (refusal !== undefined) {
+        throw refusal
+      }
+      if (calls > 1) {
+        controller.abort()
+      }
+      return logs(...args)
+    }
+    const c = capture({ client: clientOf(ops), signal: controller.signal })
+    expect(await run(["board", "logs", "-f"], c)).toBe(0)
+    expect(c.out()).toBe("before\r\nafter\r\n")
+    expect(calls).toBe(5)
+  })
+
+  it("stops following a core from another version, saying how to fix it", async () => {
+    const client = staleAfter(1, clientOf(consoleOps([["boot\r\n"]])))
+    const c = capture({ client, signal: new AbortController().signal })
+    expect(await run(["board", "logs", "-f"], c)).toBe(5)
+    expect(c.out()).toBe("boot\r\n")
+    expect(c.err()).toBe(
+      "qualithm: the running core is from another qualithm version: run `qualithm core stop`, then try again\n"
+    )
+    expect(client.sent()).toBe(2)
+    const j = capture({
+      client: staleAfter(0, clientOf(fakeOps())),
+      signal: new AbortController().signal
+    })
+    expect(await run(["board", "logs", "-f", "--json"], j)).toBe(5)
+    expect(JSON.parse(j.out())).toMatchObject({ ok: false, code: "conflict" })
+  })
+
   it("runs an interactive console until Ctrl-] and stops reading", async () => {
     const ops = consoleOps([[">>> "], ["print(2)\r\n2\r\n>>> "]])
     async function* keys(): AsyncGenerator<Uint8Array | string> {
@@ -592,6 +651,53 @@ describe("qualithm board", () => {
     const c = capture({ client: clientOf(ops), stdin: keys(), signal: controller.signal })
     expect(await run(["board", "console"], c)).toBe(0)
     expect(ops.calls).toEqual(["write:-:a", "write:-:b"])
+  })
+
+  it("leaves the console once stopped, without waiting for a key", async () => {
+    const ops = consoleOps([])
+    const controller = new AbortController()
+    let type = (): void => undefined
+    const idle = new Promise<void>((resolve) => {
+      type = resolve
+    })
+    async function* keys(): AsyncGenerator<string> {
+      await idle
+      yield "x"
+    }
+    const c = capture({ client: clientOf(ops), stdin: keys(), signal: controller.signal })
+    setTimeout(() => {
+      controller.abort()
+    }, 20)
+    expect(await run(["board", "console"], c)).toBe(0)
+    type()
+    expect(ops.calls).toEqual([])
+    expect(c.err()).toBe(
+      "qualithm: connected; press Enter for a prompt, Ctrl-] leaves\n\nqualithm: left the console\n"
+    )
+  })
+
+  it("leaves the console without waiting for a key when its core is from another version", async () => {
+    const ops = consoleOps([[">>> "]])
+    let type = (): void => undefined
+    const idle = new Promise<void>((resolve) => {
+      type = resolve
+    })
+    async function* keys(): AsyncGenerator<string> {
+      await idle
+      yield "x"
+    }
+    const c = capture({
+      client: staleAfter(2, clientOf(ops)),
+      stdin: keys(),
+      signal: new AbortController().signal
+    })
+    expect(await run(["board", "console"], c)).toBe(5)
+    type()
+    expect(ops.calls).toEqual([])
+    expect(c.err()).toBe(
+      "qualithm: connected; press Enter for a prompt, Ctrl-] leaves\n" +
+        "qualithm: the running core is from another qualithm version: run `qualithm core stop`, then try again\n"
+    )
   })
 
   it("refuses an interactive console with --json", async () => {
