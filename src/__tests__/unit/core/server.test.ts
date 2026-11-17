@@ -20,6 +20,7 @@ import {
   selfCommand,
   sendCore,
   socketClient,
+  StaleCoreError,
   startDetached
 } from "../../../core/client.ts"
 import { Core } from "../../../core/core.ts"
@@ -183,12 +184,14 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
   it("asks to stop a core that speaks another api", async () => {
     const path = socketIn()
     const close = await rawServer(path, `${JSON.stringify({ api: 99, ok: true, data: 1 })}\n`)
-    await expect(sendCore(path, { verb: "hello" })).rejects.toEqual(
+    const refused = sendCore(path, { verb: "hello" })
+    await expect(refused).rejects.toEqual(
       new CliError(
         "the running core is from another qualithm version: run `qualithm core stop`, then try again",
         "conflict"
       )
     )
+    await expect(refused).rejects.toBeInstanceOf(StaleCoreError)
     expect(await sendCore(path, { verb: "shutdown" })).toBe(1)
     close()
   })
@@ -197,7 +200,9 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
     const path = socketIn()
     const refusal = { api: 99, ok: false, error: { code: "api_mismatch", message: "no" } }
     const close = await rawServer(path, `${JSON.stringify(refusal)}\n`)
-    await expect(sendCore(path, { verb: "hello" })).rejects.toMatchObject({ code: "conflict" })
+    const refused = sendCore(path, { verb: "hello" })
+    await expect(refused).rejects.toMatchObject({ code: "conflict" })
+    await expect(refused).rejects.toBeInstanceOf(StaleCoreError)
     close()
   })
 
@@ -206,12 +211,25 @@ describe.skipIf(process.platform === "win32")("sendCore", () => {
     const message = "bad request at verb: Invalid discriminator value. Expected 'hello'"
     const refusal = { api: API_VERSION, ok: false, error: { code: "usage", message } }
     const close = await rawServer(path, `${JSON.stringify(refusal)}\n`)
-    await expect(sendCore(path, { verb: "release", serialNumber: "abc" })).rejects.toMatchObject({
+    const refused = sendCore(path, { verb: "release", serialNumber: "abc" })
+    await expect(refused).rejects.toMatchObject({
       code: "conflict",
       message: expect.stringMatching(
         /^the running core is from another qualithm version/
       ) as unknown
     })
+    await expect(refused).rejects.toBeInstanceOf(StaleCoreError)
+    close()
+  })
+
+  it("keeps a busy board's conflict apart from a core from another version", async () => {
+    const path = socketIn()
+    const message = "the board is busy with a flash, reset or run: try again"
+    const busy = { api: API_VERSION, ok: false, error: { code: "conflict", message } }
+    const close = await rawServer(path, `${JSON.stringify(busy)}\n`)
+    const refused = sendCore(path, { verb: "logs", after: 0 })
+    await expect(refused).rejects.toEqual(new CliError(message, "conflict"))
+    await expect(refused).rejects.not.toBeInstanceOf(StaleCoreError)
     close()
   })
 
