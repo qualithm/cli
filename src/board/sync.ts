@@ -387,31 +387,40 @@ os.rename(${py(`${SETUP_PATH}.tmp`)}, ${py(SETUP_PATH)})`
   )
 }
 
+/** How {@link syncProject} runs a deploy. */
+export type SyncOptions = {
+  /** Report what would change without changing it. */
+  dryRun?: boolean
+  /** Raw REPL timings. */
+  config?: RawReplConfig
+  /** A setup file to write before the reset, for a board not yet claimed. */
+  setup?: Setup
+}
+
 /**
  * Makes the board's files match a project: writes the files that differ, removes those a
  * previous deploy wrote that are gone and any folder that leaves empty, then soft-resets so `main.py` runs. Never touches the
  * SDK's reserved files or files a deploy didn't write.
  *
  * @param port - the board's open serial port
- * @param files - the project's files
- * @param dryRun - report what would change without changing it
- * @param config - raw REPL timings
- * @param setup - a setup file to write before the reset, for a board not yet claimed
+ * @param files - the project's files and the device SDK's
+ * @param sdkVersion - the device SDK release among `files`
+ * @param options - a dry run, raw REPL timings, and a setup file to write
  * @returns what changed
- * @throws {CliError} when the board refuses a write or its filesystem is full
+ * @throws {CliError} when the board refuses a write, its filesystem is full, or its firmware has
+ *   another SDK release frozen in
  */
 export async function syncProject(
   port: SerialPort,
   files: ProjectFile[],
-  dryRun = false,
-  config: RawReplConfig = defaultRawReplConfig,
-  setup?: Setup
+  sdkVersion: string,
+  { dryRun = false, config = defaultRawReplConfig, setup }: SyncOptions = {}
 ): Promise<SyncResult> {
   const repl = new RawRepl(port, config)
   await repl.enter()
   let result: SyncResult
   try {
-    result = await syncWith(repl, files, dryRun)
+    result = await syncWith(repl, files, dryRun, sdkVersion)
     if (dryRun) {
       return result
     }
