@@ -31,28 +31,28 @@ const indexFile = (path: string, sha256: string): SdkFile => ({
   sha256
 })
 
-const SDK_VERSION = "0.9.3"
+const SDK_VERSION = "0.10.0"
 
 /** Each module of the release and its SHA-256. */
 const SDK_MODULES: readonly (readonly [string, string])[] = [
-  ["__init__", "acedb0c11865fdc8273ec799614ca26ff540df7af020a017f6d5f03b5b284954"],
+  ["__init__", "7bd0f5235a7a6a6349723bbddb198483ac5a6909a8fdf28f241bf5638d39f634"],
   ["_backoff", "424c0e9793cac20f6d62c56eed1c75d8e20e515ef83322fcd938b0d5bc0f9a70"],
   ["_capability", "bfeb819beda64f0c419dd1e5faf52c7260342b521babfff176e0305bc5cbeec3"],
-  ["_credential", "d8a6a933b3b0a3a69637976924687256f59b051ec66e3ef556238a11ecde5a94"],
-  ["_device", "8e75077ce0eb99bcfca5652f790c1b48bfbe934a5a7561ed5375a38d171a1d4f"],
+  ["_credential", "0b79a07410cac8549dca50079c0986b09e1ddf46d9c7de58bafc916f29012f75"],
+  ["_device", "a413ff02d5090ec74906842365116a8565fbe596b5cee07ba515b05432c3d04c"],
   ["_errors", "1952c3b118f8d0c121e3925435171ec20ed11d96b07ceb08601eabd80a679811"],
   ["_micropython", "e7e2f847aeb21a60f240357e0f508d7e5cfb4d1c18e360cb4a35c2f32cc916ae"],
   ["_onboard", "cf0364075a3fdc899704cf9f70461aee56442c228698a3af799303a1554a72e8"],
-  ["_provision", "0b039f33a354a9552ca8302562b2263c33ccfc98d58306fa27cd549cc553be44"],
+  ["_provision", "01d5367569a3c865708b5c59003d5b431326c7f3504c7dabab450c54d7a9e4a9"],
   ["_roots", "76c07bf0f2b9267b8ed3cc5f96800b4c690bde6dd78dcf600d4d73093c15c0a8"],
   ["_subject", "6aa20f20b336dc89c6790293d66d224f686fde6b4e38c6dc01621477d1e4cc72"],
   ["_time", "7af5a7a627e00423dd4908dcb34cc3814a8fae6ef0a539fad15e3b4a10c1a9ab"],
   ["board", "d32e166da6737b97582172f1b1d70c2726e666998c162e74e39cc08c2dd6a83c"],
-  ["esp32", "a28fcba546bbe5d4a8879e984fc5b323910bac65862a32b55bf8557bc7b5496b"],
+  ["esp32", "85c953a5892f8083893f43dba86d9e3f2c5c14031f4a83ea06b357e957a5aa25"],
   ["interfaces", "f2c0224899abdb26ea68b0fa882fe7b5440aacdf5c12e67af28a1d20df34e526"],
-  ["pico", "6bd4a4559a7b97da1bc4c53ad4306939833229f50eeeb3966954f9c3b2d24691"],
-  ["ui", "f64ac5f06ae124d59dbd7f0c8715b526c3b7ae5e3ac283da618ee69569ea85d1"],
-  ["virtual", "9689951dc6f95d6d8a3e0c72e94a73d2bfe170440acc999872d1f7b91c7a3f98"]
+  ["pico", "5be9da3ccab65408e3a7b7dbfd3ab0dce67b57a7ce00ab744ffef93dfdc7c3e6"],
+  ["ui", "6855b6b90dcf742314fea3b4c355d1f158187282c98ab8bfa69014af545cd270"],
+  ["virtual", "85f5417c7327003658ad94da8ca40055ffdc6b8c68d08b0b2913a7c9e4501557"]
 ]
 
 /** The Qualithm Device SDK for MicroPython, built for the MicroPython deploy flashes. */
