@@ -50,10 +50,10 @@ export const MICROPYTHON_ESP32: Readonly<Record<Esp32Chip, Esp32Firmware>> = {
   "ESP32-C3": {
     chip: "ESP32-C3",
     version: MICROPYTHON_ESP32_VERSION,
-    url: `${QUALITHM_FIRMWARE}/0.1.1/micropython-firmware-0.1.1-esp32c3-unsigned.bin`,
-    sha256: "8705d118ce1bcc78c98c00353be688e2de32fc8063b77308716eb3c19367099a",
+    url: `${QUALITHM_FIRMWARE}/0.2.0/micropython-firmware-0.2.0-esp32c3-unsigned.bin`,
+    sha256: "dfcdcada68d5cb94f4e9242e0034c86dad3d764cc744a50b1c3f6ca6aae71628",
     imageChipId: 5,
-    frozenSdk: "0.9.3"
+    frozenSdk: "0.10.0"
   },
   "ESP32-C6": {
     chip: "ESP32-C6",

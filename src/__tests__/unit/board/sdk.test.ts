@@ -26,8 +26,8 @@ describe("DEVICE_SDK", () => {
     }
   })
 
-  it("installs device-sdk-py 0.9.3, which rejoins Wi-Fi past a passing wrong-password status", () => {
-    expect(DEVICE_SDK.version).toBe("0.9.3")
+  it("installs device-sdk-py 0.10.0, which renews at the zone's API URL", () => {
+    expect(DEVICE_SDK.version).toBe("0.10.0")
     const paths = DEVICE_SDK.files.map((f) => f.path)
     expect(paths).toContain("/lib/qualithm_device/esp32.mpy")
     expect(paths).toContain("/lib/qualithm_device/_onboard.mpy")
