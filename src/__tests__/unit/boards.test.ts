@@ -815,6 +815,7 @@ describe("virtual deploy", () => {
       newSession: () => () => fakeSession([{ id: "spc_1", name: "Lab" }])
     })
     expect(await run(["deploy", dir, "--virtual"], c)).toBe(0)
+    const width = Math.max(DEVICE_SDK.version.length, "spc_1".length)
     expect(c.out()).toBe(
       [
         "set the virtual device to claim itself into scope spc_1",
@@ -823,8 +824,8 @@ describe("virtual deploy", () => {
         `follow its output: qualithm board logs --serial ${serial} -f`,
         "",
         "Decided for this deploy",
-        `Qualithm Device SDK  ${DEVICE_SDK.version}  https://docs.qualithm.com/micropython#the-device-sdk`,
-        "Scope                spc_1  https://docs.qualithm.com/scopes#add-a-device-to-a-scope",
+        `Qualithm Device SDK  ${DEVICE_SDK.version.padEnd(width)}  https://docs.qualithm.com/micropython#the-device-sdk`,
+        `Scope                ${"spc_1".padEnd(width)}  https://docs.qualithm.com/scopes#add-a-device-to-a-scope`,
         ""
       ].join("\n")
     )
