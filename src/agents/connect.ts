@@ -233,8 +233,6 @@ type JsonAgent = {
   extra: Readonly<Record<string, string>>
   /** A macOS app bundle that also means the agent is installed. */
   bundle: string
-  /** A launcher on `PATH` that also means the agent is installed. */
-  bin?: string
 }
 
 /** The per-user settings folder an Electron app keeps under its name. */
@@ -263,8 +261,7 @@ const VSCODE: JsonAgent = {
   config: (host) => join(appSupportDir(host, "Code"), "User", "mcp.json"),
   key: "servers",
   extra: { type: "stdio" },
-  bundle: "Visual Studio Code.app",
-  bin: "code"
+  bundle: "Visual Studio Code.app"
 }
 
 const CURSOR: JsonAgent = {
@@ -273,16 +270,16 @@ const CURSOR: JsonAgent = {
   config: (host) => join(host.home, ".cursor", "mcp.json"),
   key: "mcpServers",
   extra: {},
-  bundle: "Cursor.app",
-  bin: "cursor"
+  bundle: "Cursor.app"
 }
 
+/**
+ * Whether the agent has a settings folder or, on macOS, an app bundle. A `code` or `cursor`
+ * launcher on `PATH` doesn't count: in a remote or WSL shell it belongs to an editor that reads
+ * another machine's config.
+ */
 function jsonInstalled(host: AgentHost, spec: JsonAgent): boolean {
-  return (
-    existsSync(spec.dir(host)) ||
-    appInstalled(host, spec.bundle) ||
-    (spec.bin !== undefined && which(host, spec.bin) !== undefined)
-  )
+  return existsSync(spec.dir(host)) || appInstalled(host, spec.bundle)
 }
 
 /** The agent's config as an object, `{}` when there is none, or undefined when it can't be read. */
@@ -326,7 +323,7 @@ function jsonAgent(
       ...base,
       status: "failed",
       config,
-      error: `${NAMES[spec.agent].toLowerCase()} config ${config} isn't valid JSON, so it was left alone: fix or remove it, then run this again`
+      error: `${NAMES[spec.agent].toLowerCase()} config ${config} isn't plain JSON, so it was left alone: remove any comments or trailing commas, or fix it, then run this again`
     }
   }
   const servers = (doc[spec.key] as Record<string, unknown> | undefined) ?? {}

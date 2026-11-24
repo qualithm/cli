@@ -260,12 +260,17 @@ describe("detection", () => {
     expect(statuses(noPath)["claude-code"]).toBe("not_installed")
   })
 
-  it("finds VS Code and Cursor by their app bundles or launchers when they have no config dir yet", async () => {
+  it("finds VS Code and Cursor by their app bundles but not by a launcher on PATH", async () => {
     const f = fake()
     mkdirSync(join(f.root, "Applications", "Visual Studio Code.app"), { recursive: true })
+    put(join(f.root, "bin", "code"), "")
     put(join(f.root, "bin", "cursor"), "")
-    const result = await connectAgents(f.host, { dryRun: false })
-    expect(statuses(result)).toMatchObject({ vscode: "connected", cursor: "connected" })
+    expect(statuses(await connectAgents(f.host, { dryRun: false }))).toMatchObject({
+      vscode: "connected",
+      cursor: "not_installed"
+    })
+    mkdirSync(join(f.root, "Applications", "Cursor.app"), { recursive: true })
+    expect(statuses(await connectAgents(f.host, { dryRun: false })).cursor).toBe("connected")
     expect(readJson(f.file(...CURSOR))).toEqual({
       mcpServers: { qualithm: { command: QUALITHM, args: ["mcp"] } }
     })
@@ -482,6 +487,7 @@ describe("disconnect", () => {
     const f = fake(ALL)
     put(f.file(...DESKTOP), JSON.stringify({ mcpServers: { other: { command: "x" } } }))
     put(f.file(...VSCODE), JSON.stringify({ servers: { other: { command: "y" } }, inputs: [] }))
+    put(f.file(...CURSOR), JSON.stringify({ mcpServers: { other: { command: "z" } } }))
     await connectAgents(f.host, { dryRun: false })
     f.calls.length = 0
     const result = await disconnectAgents(f.host, { dryRun: false })
@@ -490,7 +496,7 @@ describe("disconnect", () => {
       servers: { other: { command: "y" } },
       inputs: []
     })
-    expect(readJson(f.file(...CURSOR))).toEqual({ mcpServers: {} })
+    expect(readJson(f.file(...CURSOR))).toEqual({ mcpServers: { other: { command: "z" } } })
     expect(readJson(f.file(...DESKTOP))).toEqual({ mcpServers: { other: { command: "x" } } })
     expect(f.calls).toEqual([
       ["claude", "mcp", "remove", "--scope", "user", "qualithm"],
@@ -551,7 +557,7 @@ describe("failures", () => {
       put(f.file(...DESKTOP), text)
       const result = await connectAgents(f.host, { dryRun: false })
       expect(result.agents[0]).toMatchObject({ status: "failed" })
-      expect(result.agents[0]?.error).toMatch(/^claude desktop config .* isn't valid JSON/)
+      expect(result.agents[0]?.error).toMatch(/^claude desktop config .* isn't plain JSON/)
       expect(readFileSync(f.file(...DESKTOP), "utf8")).toBe(text)
     }
   })
@@ -560,7 +566,7 @@ describe("failures", () => {
     const f = fake({ vscode: true, cursor: true })
     put(f.file(...VSCODE), '{"servers": 3}')
     const result = await connectAgents(f.host, { dryRun: false })
-    expect(result.agents[4]?.error).toMatch(/^vs code config .* isn't valid JSON/)
+    expect(result.agents[4]?.error).toMatch(/^vs code config .* isn't plain JSON/)
     expect(result.agents[5]?.status).toBe("connected")
     expect(readFileSync(f.file(...VSCODE), "utf8")).toBe('{"servers": 3}')
   })

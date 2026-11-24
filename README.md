@@ -133,6 +133,7 @@ This registers `qualithm mcp` with every agent installed on this computer:
 Each gets one MCP server named `qualithm` that starts this `qualithm` by its absolute path. No token
 is written to any config: the server uses your `qualithm login` sign-in. Running it again changes
 nothing; an entry that starts a different `qualithm` is updated. Restart a running agent to load it.
+VS Code gets the entry in its default profile; in another profile, add it from the MCP view.
 
 ```bash
 qualithm agents connect --dry-run    # show the config changes without making them
