@@ -7,7 +7,13 @@ import { basename, dirname, join, resolve } from "node:path"
 export const SERVER_NAME = "qualithm"
 
 /** The agents `qualithm agents connect` registers with, in the order it reports them. */
-export type AgentId = "claude-desktop" | "claude-code" | "codex-app" | "codex-cli"
+export type AgentId =
+  | "claude-desktop"
+  | "claude-code"
+  | "codex-app"
+  | "codex-cli"
+  | "vscode"
+  | "cursor"
 
 /** How an agent starts the qualithm MCP server. */
 export type ServerEntry = {
@@ -134,7 +140,9 @@ const NAMES: Readonly<Record<AgentId, string>> = {
   "claude-desktop": "Claude desktop",
   "claude-code": "Claude Code",
   "codex-app": "Codex app",
-  "codex-cli": "Codex CLI"
+  "codex-cli": "Codex CLI",
+  vscode: "VS Code",
+  cursor: "Cursor"
 }
 
 function isFile(path: string): boolean {
@@ -211,55 +219,114 @@ function settled(
   return dryRun ? "would_connect" : "connected"
 }
 
-// Claude desktop: claude_desktop_config.json, edited in place.
+// Claude desktop, VS Code and Cursor: a JSON file of MCP servers, edited in place.
 
-function claudeDesktopDir(host: AgentHost): string {
-  if (host.platform === "darwin") {
-    return join(host.home, "Library", "Application Support", "Claude")
-  }
-  if (host.platform === "win32") {
-    return join(host.env.APPDATA ?? join(host.home, "AppData", "Roaming"), "Claude")
-  }
-  return join(host.env.XDG_CONFIG_HOME ?? join(host.home, ".config"), "Claude")
+type JsonAgent = {
+  agent: "claude-desktop" | "vscode" | "cursor"
+  /** The folder whose presence means the agent is installed. */
+  dir: (host: AgentHost) => string
+  /** The file that holds the agent's MCP servers. */
+  config: (host: AgentHost) => string
+  /** The key the servers sit under. */
+  key: "mcpServers" | "servers"
+  /** Fields the agent wants on each entry besides `command` and `args`. */
+  extra: Readonly<Record<string, string>>
+  /** A macOS app bundle that also means the agent is installed. */
+  bundle: string
 }
 
-function claudeDesktop(
+/** The per-user settings folder an Electron app keeps under its name. */
+function appSupportDir(host: AgentHost, name: string): string {
+  if (host.platform === "darwin") {
+    return join(host.home, "Library", "Application Support", name)
+  }
+  if (host.platform === "win32") {
+    return join(host.env.APPDATA ?? join(host.home, "AppData", "Roaming"), name)
+  }
+  return join(host.env.XDG_CONFIG_HOME ?? join(host.home, ".config"), name)
+}
+
+const CLAUDE_DESKTOP: JsonAgent = {
+  agent: "claude-desktop",
+  dir: (host) => appSupportDir(host, "Claude"),
+  config: (host) => join(appSupportDir(host, "Claude"), "claude_desktop_config.json"),
+  key: "mcpServers",
+  extra: {},
+  bundle: "Claude.app"
+}
+
+const VSCODE: JsonAgent = {
+  agent: "vscode",
+  dir: (host) => join(appSupportDir(host, "Code"), "User"),
+  config: (host) => join(appSupportDir(host, "Code"), "User", "mcp.json"),
+  key: "servers",
+  extra: { type: "stdio" },
+  bundle: "Visual Studio Code.app"
+}
+
+const CURSOR: JsonAgent = {
+  agent: "cursor",
+  dir: (host) => join(host.home, ".cursor"),
+  config: (host) => join(host.home, ".cursor", "mcp.json"),
+  key: "mcpServers",
+  extra: {},
+  bundle: "Cursor.app"
+}
+
+/**
+ * Whether the agent has a settings folder or, on macOS, an app bundle. A `code` or `cursor`
+ * launcher on `PATH` doesn't count: in a remote or WSL shell it belongs to an editor that reads
+ * another machine's config.
+ */
+function jsonInstalled(host: AgentHost, spec: JsonAgent): boolean {
+  return existsSync(spec.dir(host)) || appInstalled(host, spec.bundle)
+}
+
+/** The agent's config as an object, `{}` when there is none, or undefined when it can't be read. */
+function readJsonConfig(
+  config: string,
+  key: JsonAgent["key"]
+): Record<string, unknown> | undefined {
+  if (!existsSync(config)) {
+    return {}
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(config, "utf8"))
+  } catch {
+    return undefined
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return undefined
+  }
+  const servers = (parsed as Record<string, unknown>)[key]
+  return servers === undefined || (typeof servers === "object" && servers !== null)
+    ? (parsed as Record<string, unknown>)
+    : undefined
+}
+
+function jsonAgent(
   host: AgentHost,
+  spec: JsonAgent,
   target: ServerEntry | null,
   server: AgentsResult["server"],
   dryRun: boolean
 ): AgentReport {
-  const dir = claudeDesktopDir(host)
-  const config = join(dir, "claude_desktop_config.json")
-  const base = { agent: "claude-desktop" as const, name: NAMES["claude-desktop"] }
-  if (!existsSync(dir) && !appInstalled(host, "Claude.app")) {
+  const config = spec.config(host)
+  const base = { agent: spec.agent, name: NAMES[spec.agent] }
+  if (!jsonInstalled(host, spec)) {
     return { ...base, status: "not_installed" }
   }
-  let doc: Record<string, unknown> = {}
-  if (existsSync(config)) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(readFileSync(config, "utf8"))
-    } catch {
-      parsed = undefined
+  const doc = readJsonConfig(config, spec.key)
+  if (doc === undefined) {
+    return {
+      ...base,
+      status: "failed",
+      config,
+      error: `${NAMES[spec.agent].toLowerCase()} config ${config} isn't plain JSON, so it was left alone: remove any comments or trailing commas, or fix it, then run this again`
     }
-    const servers = (parsed as { mcpServers?: unknown } | undefined)?.mcpServers
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed) ||
-      (servers !== undefined && (typeof servers !== "object" || servers === null))
-    ) {
-      return {
-        ...base,
-        status: "failed",
-        config,
-        error: `claude desktop config ${config} isn't valid JSON, so it was left alone: fix or remove it, then run this again`
-      }
-    }
-    doc = parsed as Record<string, unknown>
   }
-  const servers = (doc.mcpServers as Record<string, unknown> | undefined) ?? {}
+  const servers = (doc[spec.key] as Record<string, unknown> | undefined) ?? {}
   const before = SERVER_NAME in servers ? jsonEntry(servers[SERVER_NAME]) : null
   if (target !== null && sameEntry(before, server)) {
     return { ...base, status: "already_connected", config, before, after: before }
@@ -269,11 +336,14 @@ function claudeDesktop(
   }
   if (!dryRun) {
     const others = Object.fromEntries(Object.entries(servers).filter(([k]) => k !== SERVER_NAME))
-    const mcpServers =
+    const entries =
       target === null
         ? others
-        : { ...others, [SERVER_NAME]: { command: target.command, args: target.args } }
-    writeAtomic(config, `${JSON.stringify({ ...doc, mcpServers }, null, 2)}\n`)
+        : {
+            ...others,
+            [SERVER_NAME]: { ...spec.extra, command: target.command, args: target.args }
+          }
+    writeAtomic(config, `${JSON.stringify({ ...doc, [spec.key]: entries }, null, 2)}\n`)
   }
   return { ...base, status: settled(target, before, dryRun), config, before, after: target }
 }
@@ -510,7 +580,9 @@ async function guard(
 async function apply(host: AgentHost, connect: boolean, dryRun: boolean): Promise<AgentsResult> {
   const server = { name: SERVER_NAME, ...host.server }
   const target = connect ? { command: server.command, args: [...server.args] } : null
-  const desktop = await guard("claude-desktop", () => claudeDesktop(host, target, server, dryRun))
+  const desktop = await guard("claude-desktop", () =>
+    jsonAgent(host, CLAUDE_DESKTOP, target, server, dryRun)
+  )
   const code = await guard("claude-code", async () =>
     cliAgent(host, CLAUDE_CODE, target, server, dryRun)
   )
@@ -518,7 +590,9 @@ async function apply(host: AgentHost, connect: boolean, dryRun: boolean): Promis
     cliAgent(host, CODEX_CLI, target, server, dryRun)
   )
   const app = await guard("codex-app", () => codexApp(host, codex, target, server, dryRun))
-  return { server, agents: [desktop, code, app, codex] }
+  const vscode = await guard("vscode", () => jsonAgent(host, VSCODE, target, server, dryRun))
+  const cursor = await guard("cursor", () => jsonAgent(host, CURSOR, target, server, dryRun))
+  return { server, agents: [desktop, code, app, codex, vscode, cursor] }
 }
 
 /**

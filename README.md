@@ -120,11 +120,20 @@ qualithm board reconnect --serial <serial-number>
 qualithm agents connect
 ```
 
-This registers `qualithm mcp` with every agent installed on this computer: Claude desktop, Claude
-Code, the Codex app and the Codex CLI. Each gets one MCP server named `qualithm` that starts this
-`qualithm` by its absolute path. No token is written to any config: the server uses your
-`qualithm login` sign-in. Running it again changes nothing; an entry that starts a different
-`qualithm` is updated. Restart a running agent to load it.
+This registers `qualithm mcp` with every agent installed on this computer:
+
+| Agent             | Where the entry goes                                       |
+| ----------------- | ---------------------------------------------------------- |
+| Claude desktop    | `claude_desktop_config.json`                               |
+| Claude Code       | `claude mcp add --scope user`                              |
+| Codex CLI and app | `codex mcp add`, or `~/.codex/config.toml` without the CLI |
+| VS Code (Copilot) | the user `mcp.json`, beside VS Code's `settings.json`      |
+| Cursor            | `~/.cursor/mcp.json`                                       |
+
+Each gets one MCP server named `qualithm` that starts this `qualithm` by its absolute path. No token
+is written to any config: the server uses your `qualithm login` sign-in. Running it again changes
+nothing; an entry that starts a different `qualithm` is updated. Restart a running agent to load it.
+VS Code gets the entry in its default profile; in another profile, add it from the MCP view.
 
 ```bash
 qualithm agents connect --dry-run    # show the config changes without making them
