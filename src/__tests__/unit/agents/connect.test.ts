@@ -226,7 +226,10 @@ describe("stableExecutable", () => {
   })
 
   it("rewrites an entry that pins the Cellar path", async () => {
-    const f = fake({ desktop: true, server: { command: "/opt/homebrew/bin/node", args: [QUALITHM, "mcp"] } })
+    const f = fake({
+      desktop: true,
+      server: { command: "/opt/homebrew/bin/node", args: [QUALITHM, "mcp"] }
+    })
     const old = {
       command: "/opt/homebrew/Cellar/node/26.13.1_2/bin/node",
       args: [QUALITHM, "mcp"]
