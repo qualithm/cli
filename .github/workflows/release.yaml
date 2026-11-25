@@ -75,7 +75,7 @@ jobs:
   deploy-docs:
     if: ${{ !endsWith(github.repository, '-example') }}
     name: Deploy Docs
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: github-pages
@@ -112,7 +112,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [publish-npm, deploy-docs]
     permissions:

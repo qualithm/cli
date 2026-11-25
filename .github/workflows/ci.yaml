@@ -27,7 +27,7 @@ env:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       reuse: ${{ steps.reuse.outputs.reuse == 'true' }}
@@ -184,7 +184,7 @@ jobs:
     name: Static Checks
     needs: changes
     if: needs.changes.outputs.reuse != 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CODE: ${{ needs.changes.outputs.code }}
@@ -221,7 +221,7 @@ jobs:
     name: Test (Bun ${{ matrix.bun-version }})
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -242,7 +242,7 @@ jobs:
     name: Test (Node.js ${{ matrix.node-version }})
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -265,7 +265,7 @@ jobs:
     name: Test (Deno)
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -283,7 +283,7 @@ jobs:
     name: Validate Runtime Exports
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -304,7 +304,7 @@ jobs:
     name: Coverage
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -398,7 +398,7 @@ jobs:
     name: Coverage Upload
     needs: changes
     if: needs.changes.outputs.coverage-run != ''
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -472,7 +472,7 @@ jobs:
     if: >-
       needs.changes.outputs.code == 'true' && needs.changes.outputs.integration == 'true' &&
       (github.base_ref == 'test' || needs.changes.outputs.is-main == 'true')
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -493,7 +493,7 @@ jobs:
     # Ungated by the code filter: the generator pin and config live outside it.
     # Skips on a reused tree. A repo without
     # openapi-generator.yaml generates nothing and skips.
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -518,7 +518,7 @@ jobs:
     # cut from. A broken doc comment (an unknown tag, a bad link, a
     # referenced type left unexported) fails it; a missing one doesn't.
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -551,7 +551,7 @@ jobs:
         generated-drift,
         docs
       ]
-    runs-on: ${{ vars.RUNNER_FALLBACK == 'github' && 'ubuntu-24.04' || 'sandbox-standard' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Verify dependent jobs
