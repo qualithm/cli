@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
+import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js"
 import { z } from "zod"
 
 import { CliError, failure, type Result, success } from "./envelope.ts"
@@ -78,6 +78,35 @@ export function toCallToolResult(result: Result): CallToolResult {
   }
 }
 
+/** What `initialize` tells an agent about every tool. */
+export const SERVER_INSTRUCTIONS = [
+  "Every tool returns one result envelope: {ok, code?, message?, dryRun?, data?}. Branch on ok and code, never on message.",
+  "A tool that changes something takes dryRun: pass dryRun: true to see the planned change without making it, then call again without it.",
+  "Read-only tools are annotated readOnlyHint; tools that delete, revoke or overwrite are annotated destructiveHint."
+].join(" ")
+
+// Mutations that remove or overwrite something a repeat call can't bring back.
+const DESTRUCTIVE = /^(delete|revoke|remove|rotate|flash)_/
+// Mutations a repeat call with the same input changes nothing further.
+const IDEMPOTENT = /^(delete|revoke|remove|update|release)_|^(connect|disconnect)_agents$/
+
+/**
+ * The MCP annotations for a tool, derived from whether it mutates and from its verb.
+ *
+ * @param tool - the tool
+ * @returns its annotations
+ */
+export function toolAnnotations(tool: Tool): ToolAnnotations {
+  if (!tool.mutating) {
+    return { readOnlyHint: true }
+  }
+  return {
+    readOnlyHint: false,
+    destructiveHint: DESTRUCTIVE.test(tool.name),
+    idempotentHint: IDEMPOTENT.test(tool.name)
+  }
+}
+
 /**
  * Builds the MCP server with every tool registered.
  *
@@ -93,12 +122,16 @@ export function buildMcpServer(
 ): McpServer {
   const server = new McpServer(
     { name: "qualithm", title: "Qualithm", version },
-    { capabilities: { tools: { listChanged: false } } }
+    { capabilities: { tools: { listChanged: false } }, instructions: SERVER_INSTRUCTIONS }
   )
   for (const tool of tools) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.input },
+      {
+        description: tool.description,
+        inputSchema: tool.input,
+        annotations: toolAnnotations(tool)
+      },
       async (args: unknown) => toCallToolResult(await callTool(tool, newSession, args))
     )
   }

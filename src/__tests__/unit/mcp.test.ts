@@ -2,7 +2,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import { describe, expect, it } from "vitest"
 
-import { buildMcpServer, callTool, type SessionFactory, toCallToolResult } from "../../mcp.ts"
+import {
+  buildMcpServer,
+  callTool,
+  SERVER_INSTRUCTIONS,
+  type SessionFactory,
+  toCallToolResult,
+  toolAnnotations
+} from "../../mcp.ts"
 import { Session } from "../../platform.ts"
 import { TOOLS } from "../../tools/index.ts"
 import { listApiTokens, revokeApiToken } from "../../tools/tokens.ts"
@@ -53,6 +60,42 @@ describe("tool registry conformance", () => {
     const revoke = tools.find((tool) => tool.name === "revoke_api_token")
     expect(revoke?.inputSchema.properties).toHaveProperty("dryRun")
     expect(client.getServerVersion()).toMatchObject({ name: "qualithm", version: "9.9.9" })
+    expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS)
+  })
+
+  it("annotates every served tool by whether it mutates", async () => {
+    const client = await connect(sessions().newSession)
+    const { tools } = await client.listTools()
+    for (const served of tools) {
+      const tool = TOOLS.find((t) => t.name === served.name)
+      expect(served.annotations, served.name).toEqual(tool && toolAnnotations(tool))
+      expect(served.annotations?.readOnlyHint, served.name).toBe(tool?.mutating === false)
+      if (tool?.mutating === true) {
+        expect(typeof served.annotations?.destructiveHint, served.name).toBe("boolean")
+        expect(typeof served.annotations?.idempotentHint, served.name).toBe("boolean")
+      }
+    }
+  })
+
+  it("marks deletes and revokes destructive and creates neither destructive nor idempotent", () => {
+    const byName = new Map(TOOLS.map((tool) => [tool.name, toolAnnotations(tool)]))
+    expect(byName.get("revoke_api_token")).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true
+    })
+    expect(byName.get("delete_device")).toMatchObject({ destructiveHint: true })
+    expect(byName.get("create_device")).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false
+    })
+    expect(byName.get("update_device")).toMatchObject({
+      destructiveHint: false,
+      idempotentHint: true
+    })
+    expect(byName.get("connect_agents")).toMatchObject({ idempotentHint: true })
+    expect(byName.get("list_api_tokens")).toEqual({ readOnlyHint: true })
   })
 })
 
