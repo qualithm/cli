@@ -1,7 +1,15 @@
 import { execFile } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  writeFileSync
+} from "node:fs"
 import { homedir } from "node:os"
-import { basename, dirname, join, resolve } from "node:path"
+import { basename, dirname, join, posix, resolve, win32 } from "node:path"
 
 /** The name every agent knows the qualithm MCP server by. */
 export const SERVER_NAME = "qualithm"
@@ -99,6 +107,45 @@ export function qualithmServer(
 }
 
 /**
+ * A path to `execPath` that survives the runtime's upgrades: the first link on `PATH` with the same
+ * name that resolves to it, such as Homebrew's `/opt/homebrew/bin/node` for the versioned Cellar
+ * binary that `process.execPath` names. Without one, `execPath` itself.
+ *
+ * @param execPath - the running executable, already resolved
+ * @param path - the `PATH` to search
+ * @param platform - the OS, which sets the `PATH` separator
+ * @param realpath - resolves links; a path it can't resolve is skipped
+ * @returns the path to write into an agent's config
+ */
+export function stableExecutable(
+  execPath: string,
+  path: string | undefined,
+  platform: NodeJS.Platform,
+  realpath: (path: string) => string = realpathSync
+): string {
+  const resolveOrNull = (p: string): string | null => {
+    try {
+      return realpath(p)
+    } catch {
+      return null
+    }
+  }
+  const target = resolveOrNull(execPath) ?? execPath
+  const paths = platform === "win32" ? win32 : posix
+  const name = paths.basename(execPath)
+  for (const dir of (path ?? "").split(paths.delimiter)) {
+    if (dir === "" || !paths.isAbsolute(dir)) {
+      continue
+    }
+    const candidate = paths.join(dir, name)
+    if (candidate !== execPath && resolveOrNull(candidate) === target) {
+      return candidate
+    }
+  }
+  return execPath
+}
+
+/**
  * Runs a program and collects what it printed, never throwing: a spawn failure exits 1.
  *
  * @param platform - the OS, since Windows runs `.cmd` shims through a shell
@@ -131,7 +178,10 @@ export function defaultAgentHost(): AgentHost {
     home,
     env: process.env,
     applications: ["/Applications", join(home, "Applications")],
-    server: qualithmServer(process.execPath, process.argv[1]),
+    server: qualithmServer(
+      stableExecutable(process.execPath, process.env.PATH, process.platform),
+      process.argv[1]
+    ),
     exec: execRunner(process.platform)
   }
 }
