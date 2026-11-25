@@ -137,6 +137,14 @@ keeps its word until the API next changes it.
 - **One CTA, verb-first, landing on a page that exists:** "Review invite". Don't link to a surface
   the product doesn't have.
 - **Greeting:** "Hi {name}," when a name is known, otherwise no greeting.
+- **Status line for a failure, a warning or a security notice:** the first block after the greeting
+  is the state's icon and a bold label naming it: "Payment failed", "Events throttled". Security
+  mail says "Security notice", what changed and when, and the fix if the reader didn't make the
+  change. Information and receipts carry no status line.
+- **Billing actions open the named team's page, with the app's own label:** "Manage payment details"
+  opens that team's Plan page, never a generic or vendor page.
+- **Once per fact:** each email is sent once for the business fact it reports (one failed payment,
+  one deleted team), however often the code that notices it runs.
 - **Story fixtures use production's subject and copy.** A fixture that disagrees with what ships is
   a bug.
 
