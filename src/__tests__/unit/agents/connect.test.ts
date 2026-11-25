@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -21,7 +22,8 @@ import {
   disconnectAgents,
   type ExecResult,
   execRunner,
-  qualithmServer
+  qualithmServer,
+  stableExecutable
 } from "../../../agents/connect.ts"
 
 const QUALITHM = "/opt/qualithm/bin/qualithm"
@@ -182,6 +184,57 @@ describe("qualithmServer", () => {
     const host = defaultAgentHost()
     expect(host.platform).toBe(process.platform)
     expect(host.server.args.at(-1)).toBe("mcp")
+  })
+})
+
+describe("stableExecutable", () => {
+  function cellar(): { node: string; bin: string; other: string } {
+    const node = join(root, "Cellar", "node", "26.13.1_2", "bin", "node")
+    put(node, "")
+    const bin = join(root, "bin")
+    const other = join(root, "other")
+    mkdirSync(bin, { recursive: true })
+    mkdirSync(other, { recursive: true })
+    symlinkSync(node, join(bin, "node"))
+    return { node, bin, other }
+  }
+
+  it("names the link on PATH instead of the versioned Cellar binary", () => {
+    const { node, bin, other } = cellar()
+    writeFileSync(join(other, "node"), "")
+    const path = ["", "relative", other, bin].join(":")
+    const found = stableExecutable(node, path, "darwin")
+    expect(found).toBe(join(bin, "node"))
+    expect(found).not.toContain("Cellar")
+  })
+
+  it("keeps the running path when nothing on PATH links to it", () => {
+    const { node, other } = cellar()
+    expect(stableExecutable(node, other, "darwin")).toBe(node)
+    expect(stableExecutable(node, undefined, "darwin")).toBe(node)
+  })
+
+  it("splits a Windows PATH on semicolons", () => {
+    const real = (p: string): string => {
+      if (p === "C:\\nodejs\\node.exe" || p === "C:\\link\\node.exe") {
+        return "C:\\nodejs\\node.exe"
+      }
+      throw new Error("missing")
+    }
+    const stable = stableExecutable("C:\\nodejs\\node.exe", "C:\\link;C:\\nodejs", "win32", real)
+    expect(stable).toBe("C:\\link\\node.exe")
+  })
+
+  it("rewrites an entry that pins the Cellar path", async () => {
+    const f = fake({ desktop: true, server: { command: "/opt/homebrew/bin/node", args: [QUALITHM, "mcp"] } })
+    const old = {
+      command: "/opt/homebrew/Cellar/node/26.13.1_2/bin/node",
+      args: [QUALITHM, "mcp"]
+    }
+    put(f.file(...DESKTOP), JSON.stringify({ mcpServers: { qualithm: old } }))
+    const result = await connectAgents(f.host, { dryRun: false })
+    expect(result.agents[0]).toMatchObject({ status: "connected", before: old })
+    expect(readFileSync(f.file(...DESKTOP), "utf8")).not.toContain("Cellar")
   })
 })
 
