@@ -24,8 +24,8 @@ export const AGENTS_USAGE = `Usage:
   qualithm agents connect      register qualithm mcp with every agent on this computer
   qualithm agents disconnect   remove it again
 
-Connects Claude desktop, Claude Code, the Codex app and the Codex CLI, where installed. Running
-connect again changes nothing. No token is written to any config.
+Connects Claude desktop, Claude Code, the Codex app, the Codex CLI, VS Code (Copilot) and Cursor,
+where installed. Running connect again changes nothing. No token is written to any config.
 
 Flags:
   --json      print one JSON envelope line
@@ -87,7 +87,7 @@ function human(result: AgentsResult): string {
   const changed = result.agents.some((a) => a.status === "connected" || a.status === "removed")
   const restart = changed ? ["restart a running agent to load the change"] : []
   const none = result.agents.every((a) => a.status === "not_installed")
-    ? ["no Claude or Codex found on this computer: install one, then run this again"]
+    ? ["no supported agent found on this computer: install one, then run this again"]
     : []
   return `${[lines.trimEnd(), ...changes, ...none, ...restart].join("\n")}\n`
 }

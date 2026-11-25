@@ -33,7 +33,7 @@ export function agentTools(host: () => AgentHost = defaultAgentHost): Tool[] {
     defineTool({
       name: "connect_agents",
       description:
-        "Register qualithm mcp with every agent installed on this computer: Claude desktop, Claude Code, the Codex app and the Codex CLI. Idempotent; reports each agent as not_installed, already_connected or connected. No token is written to any config",
+        "Register qualithm mcp with every agent installed on this computer: Claude desktop, Claude Code, the Codex app, the Codex CLI, VS Code (Copilot) and Cursor. Idempotent; reports each agent as not_installed, already_connected or connected. No token is written to any config",
       mutating: true,
       operations: [],
       local: true,

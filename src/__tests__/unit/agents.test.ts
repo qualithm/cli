@@ -79,6 +79,8 @@ describe("qualithm agents", () => {
         "Claude Code     connected",
         "Codex app       not installed",
         "Codex CLI       not installed",
+        "VS Code         not installed",
+        "Cursor          not installed",
         "Claude desktop:",
         `  edit  ${machine.desktop}`,
         `  now   ${QUALITHM} mcp`,
@@ -112,7 +114,9 @@ describe("qualithm agents", () => {
           },
           { agent: "claude-code", status: "would_connect" },
           { agent: "codex-app", status: "not_installed" },
-          { agent: "codex-cli", status: "not_installed" }
+          { agent: "codex-cli", status: "not_installed" },
+          { agent: "vscode", name: "VS Code", status: "not_installed" },
+          { agent: "cursor", name: "Cursor", status: "not_installed" }
         ]
       }
     })
@@ -135,7 +139,7 @@ describe("qualithm agents", () => {
     const c = capture({ ...host(), env: {}, home: join(root, "empty") })
     expect(await runAgents(["connect"], { ...c.io, host: c.io.agents })).toBe(0)
     expect(c.out()).toContain(
-      "no Claude or Codex found on this computer: install one, then run this again\n"
+      "no supported agent found on this computer: install one, then run this again\n"
     )
   })
 
@@ -153,7 +157,7 @@ describe("qualithm agents", () => {
       ok: false,
       code: "error",
       message: "claude mcp add exited 1: claude broke",
-      data: { agents: [{ status: "connected" }, { status: "failed" }, {}, {}] }
+      data: { agents: [{ status: "connected" }, { status: "failed" }, {}, {}, {}, {}] }
     })
   })
 
@@ -190,7 +194,11 @@ describe("agent tools", () => {
       throw new Error("no session")
     }
     const result = await callTool(connect, never, { dryRun: true })
-    expect(result).toMatchObject({ ok: true, dryRun: true, data: { agents: [{}, {}, {}, {}] } })
+    expect(result).toMatchObject({
+      ok: true,
+      dryRun: true,
+      data: { agents: [{}, {}, {}, {}, {}, {}] }
+    })
     expect(machine.calls).toEqual([])
   })
 
